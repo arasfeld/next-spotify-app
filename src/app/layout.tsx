@@ -2,23 +2,15 @@
 // All packages except `@mantine/hooks` require styles imports
 import '@mantine/core/styles.css';
 
-import {
-  ColorSchemeScript,
-  createTheme,
-  mantineHtmlProps,
-  MantineProvider,
-} from '@mantine/core';
-
+import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
 import type { Metadata } from 'next';
+
+import { Providers } from '../components/Providers';
 
 export const metadata: Metadata = {
   title: 'Next Spotify App',
   description: 'A web-based Spotify client with all your favorite features',
 };
-
-const theme = createTheme({
-  /** Put your mantine theme override here */
-});
 
 export default function RootLayout({
   children,
@@ -31,7 +23,7 @@ export default function RootLayout({
         <ColorSchemeScript />
       </head>
       <body>
-        <MantineProvider theme={theme}>{children}</MantineProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
