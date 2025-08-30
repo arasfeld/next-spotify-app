@@ -1,0 +1,353 @@
+# Spotify Web API Authentication - Authorization Code PKCE Flow
+
+## Overview
+
+The Authorization Code with PKCE (Proof Key for Code Exchange) flow is the recommended authentication method for single-page web apps, mobile apps, and any application where the client secret cannot be safely stored. This flow provides enhanced security by using a code verifier and code challenge mechanism.
+
+## Flow Steps
+
+1. **Code Verifier Generation** - Create a high-entropy cryptographic random string
+2. **Code Challenge Creation** - Hash the code verifier using SHA256 and base64url encode
+3. **User Authorization Request** - Redirect user to Spotify with code challenge
+4. **Access Token Exchange** - Exchange authorization code for access token using code verifier
+
+## Implementation Guide
+
+### 1. Code Verifier Generation
+
+```javascript
+const generateRandomString = (length) => {
+  const possible =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const values = crypto.getRandomValues(new Uint8Array(length));
+  return values.reduce((acc, x) => acc + possible[x % possible.length], '');
+};
+
+const codeVerifier = generateRandomString(64);
+```
+
+### 2. Code Challenge Creation
+
+```javascript
+const sha256 = async (plain) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(plain);
+  return window.crypto.subtle.digest('SHA-256', data);
+};
+
+const base64encode = (input) => {
+  return btoa(String.fromCharCode(...new Uint8Array(input)))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+};
+
+const hashed = await sha256(codeVerifier);
+const codeChallenge = base64encode(hashed);
+```
+
+### 3. User Authorization Request
+
+```javascript
+const clientId = 'YOUR_CLIENT_ID';
+const redirectUri = 'http://127.0.0.1:8080';
+const scope = 'user-read-private user-read-email';
+
+// Store code verifier for later use
+window.localStorage.setItem('code_verifier', codeVerifier);
+
+const authUrl = new URL('https://accounts.spotify.com/authorize');
+const params = {
+  response_type: 'code',
+  client_id: clientId,
+  scope,
+  code_challenge_method: 'S256',
+  code_challenge: codeChallenge,
+  redirect_uri: redirectUri,
+};
+
+authUrl.search = new URLSearchParams(params).toString();
+window.location.href = authUrl.toString();
+```
+
+### 4. Handle Authorization Response
+
+```javascript
+// Parse the callback URL to get the authorization code
+const urlParams = new URLSearchParams(window.location.search);
+let code = urlParams.get('code');
+let state = urlParams.get('state');
+
+// Check for errors
+let error = urlParams.get('error');
+if (error) {
+  console.error('Authorization failed:', error);
+  return;
+}
+```
+
+### 5. Access Token Exchange
+
+```javascript
+const getToken = async (code) => {
+  const codeVerifier = localStorage.getItem('code_verifier');
+
+  const url = 'https://accounts.spotify.com/api/token';
+  const payload = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
+    }),
+  };
+
+  const body = await fetch(url, payload);
+  const response = await body.json();
+
+  // Store the access token
+  localStorage.setItem('access_token', response.access_token);
+  localStorage.setItem('refresh_token', response.refresh_token);
+
+  return response;
+};
+```
+
+## Required Parameters
+
+### Authorization Request Parameters
+
+- `client_id` (Required): Your Spotify app's client ID
+- `response_type` (Required): Set to "code"
+- `redirect_uri` (Required): Must exactly match registered redirect URI
+- `code_challenge_method` (Required): Set to "S256"
+- `code_challenge` (Required): The SHA256-hashed and base64url-encoded code verifier
+- `scope` (Optional): Space-separated list of requested permissions
+- `state` (Optional): CSRF protection parameter
+
+### Token Exchange Parameters
+
+- `grant_type` (Required): Set to "authorization_code"
+- `code` (Required): Authorization code from callback
+- `redirect_uri` (Required): Must match the one used in authorization request
+- `client_id` (Required): Your Spotify app's client ID
+- `code_verifier` (Required): The original code verifier used to generate the challenge
+
+## Response Format
+
+### Successful Token Response
+
+```json
+{
+  "access_token": "BQBP...",
+  "token_type": "Bearer",
+  "scope": "user-read-private user-read-email",
+  "expires_in": 3600,
+  "refresh_token": "AQB..."
+}
+```
+
+### Error Response
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Invalid authorization code"
+}
+```
+
+## Security Best Practices
+
+1. **Code Verifier Storage**: Store the code verifier securely (localStorage for SPAs, secure storage for mobile apps)
+2. **State Parameter**: Always use a state parameter to prevent CSRF attacks
+3. **HTTPS Only**: Always use HTTPS in production
+4. **Token Storage**: Store tokens securely and implement proper token refresh logic
+5. **Scope Limitation**: Request only the scopes your application actually needs
+
+## Common Scopes
+
+- `user-read-private`: Read access to user's private information
+- `user-read-email`: Read access to user's email address
+- `playlist-read-private`: Read access to private playlists
+- `playlist-modify-public`: Write access to public playlists
+- `playlist-modify-private`: Write access to private playlists
+- `user-library-read`: Read access to user's library
+- `user-library-modify`: Write access to user's library
+
+## Error Handling
+
+Common error scenarios to handle:
+
+- `access_denied`: User denied authorization
+- `invalid_grant`: Authorization code is invalid or expired
+- `invalid_client`: Client ID is invalid
+- `invalid_redirect_uri`: Redirect URI doesn't match registered URI
+
+## Token Refresh
+
+A refresh token is a security credential that allows client applications to obtain new access tokens without requiring users to reauthorize the application.
+
+Access tokens are intentionally configured to have a limited lifespan (1 hour), at the end of which, new tokens can be obtained by providing the original refresh token acquired during the authorization token request response:
+
+```json
+{
+  "access_token": "NgCXRK...MzYjw",
+  "token_type": "Bearer",
+  "scope": "user-read-private user-read-email",
+  "expires_in": 3600,
+  "refresh_token": "NgAagA...Um_SHo"
+}
+```
+
+### Refresh Request Parameters
+
+| Body Parameter | Relevance              | Value                                                              |
+| -------------- | ---------------------- | ------------------------------------------------------------------ |
+| grant_type     | Required               | Set it to `refresh_token`                                          |
+| refresh_token  | Required               | The refresh token returned from the authorization token request    |
+| client_id      | Only required for PKCE | The client ID for your app, available from the developer dashboard |
+
+### Required Headers
+
+| Header Parameter | Relevance                                       | Value                                                                                                                                             |
+| ---------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Content-Type     | Required                                        | Always set to `application/x-www-form-urlencoded`                                                                                                 |
+| Authorization    | Only required for Authorization Code (not PKCE) | Base 64 encoded string that contains the client ID and client secret key. Format: `Authorization: Basic <base64 encoded client_id:client_secret>` |
+
+### Implementation Examples
+
+#### Browser-side JavaScript (PKCE Flow)
+
+```javascript
+const getRefreshToken = async () => {
+  // refresh token that has been previously stored
+  const refreshToken = localStorage.getItem('refresh_token');
+  const url = 'https://accounts.spotify.com/api/token';
+
+  const payload = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+    }),
+  };
+
+  const body = await fetch(url, payload);
+  const response = await body.json();
+
+  localStorage.setItem('access_token', response.access_token);
+  if (response.refresh_token) {
+    localStorage.setItem('refresh_token', response.refresh_token);
+  }
+
+  return response;
+};
+```
+
+#### Server-side Node.js (Authorization Code Flow)
+
+```javascript
+const refreshToken = async (refreshToken) => {
+  const url = 'https://accounts.spotify.com/api/token';
+  const payload = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization:
+        'Basic ' +
+        Buffer.from(clientId + ':' + clientSecret).toString('base64'),
+    },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }),
+  };
+
+  const body = await fetch(url, payload);
+  const response = await body.json();
+
+  return response;
+};
+```
+
+### Refresh Response
+
+If everything goes well, you'll receive a 200 OK response which is very similar to the response when issuing an access token:
+
+```json
+{
+  "access_token": "BQBLuPRYBQ...BP8stIv5xr-Iwaf4l8eg",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "AQAQfyEFmJJuCvAFh...cG_m-2KTgNDaDMQqjrOa3",
+  "scope": "user-read-email user-read-private"
+}
+```
+
+**Important**: The refresh token contained in the response can be used to request new tokens. Depending on the grant used to get the initial refresh token, a refresh token might not be included in each response. When a refresh token is not returned, continue using the existing token.
+
+## Access Token Details
+
+The access token is a string which contains the credentials and permissions that can be used to access a given resource (e.g artists, albums or tracks) or user's data (e.g your profile or your playlists).
+
+### Token Usage
+
+To use the access token you must include the following header in your API calls:
+
+| Header Parameter | Value                                                            |
+| ---------------- | ---------------------------------------------------------------- |
+| Authorization    | Valid access token following the format: `Bearer <Access Token>` |
+
+**Note**: The access token is valid for 1 hour (3600 seconds). After that time, the token expires and you need to request a new one.
+
+### API Call Examples
+
+#### cURL Example
+
+```bash
+curl --request GET \
+    'https://api.spotify.com/v1/tracks/2TpxZ7JUBn3uw46aR7qd6V' \
+     --header "Authorization: Bearer NgCXRK...MzYjw"
+```
+
+#### JavaScript Example
+
+```javascript
+async function getProfile(accessToken) {
+  let accessToken = localStorage.getItem('access_token');
+
+  const response = await fetch('https://api.spotify.com/v1/me', {
+    headers: {
+      Authorization: 'Bearer ' + accessToken,
+    },
+  });
+
+  const data = await response.json();
+  return data;
+}
+```
+
+#### Generic API Call Function
+
+```javascript
+const makeApiCall = async (endpoint) => {
+  const accessToken = localStorage.getItem('access_token');
+
+  const response = await fetch(`https://api.spotify.com/v1${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  return response.json();
+};
+```

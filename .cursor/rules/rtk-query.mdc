@@ -1,0 +1,1254 @@
+# RTK Query
+
+## Overview
+
+RTK Query is a powerful data fetching and caching tool for Redux applications. It's written in TypeScript and provides excellent type safety when used with TypeScript 4.1+.
+
+## Prerequisites
+
+- **TypeScript 4.1+** - Required for best results with auto-generated React hooks
+- **Redux Toolkit** - RTK Query is part of Redux Toolkit
+- **React** - For React-specific hooks (optional)
+
+## Basic Setup
+
+### 1. Installation
+
+```bash
+npm install @reduxjs/toolkit react-redux
+```
+
+### 2. API Definition with TypeScript
+
+```typescript
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+// Define your types
+interface Post {
+  id: number;
+  name: string;
+  content: string;
+}
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// Create the API
+export const api = createApi({
+  reducerPath: 'api',
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  tagTypes: ['Post', 'User'],
+  endpoints: (build) => ({
+    // Query endpoints
+    getPosts: build.query<Post[], void>({
+      query: () => 'posts',
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ id }) => ({ type: 'Post' as const, id })),
+              { type: 'Post', id: 'LIST' },
+            ]
+          : [{ type: 'Post', id: 'LIST' }],
+    }),
+
+    getPost: build.query<Post, number>({
+      query: (id) => `posts/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Post', id }],
+    }),
+
+    // Mutation endpoints
+    createPost: build.mutation<Post, Partial<Post>>({
+      query: (body) => ({
+        url: 'posts',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Post', id: 'LIST' }],
+    }),
+
+    updatePost: build.mutation<Post, Partial<Post> & Pick<Post, 'id'>>({
+      query: ({ id, ...patch }) => ({
+        url: `posts/${id}`,
+        method: 'PATCH',
+        body: patch,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Post', id }],
+    }),
+
+    deletePost: build.mutation<{ success: boolean; id: number }, number>({
+      query: (id) => ({
+        url: `posts/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [{ type: 'Post', id }],
+    }),
+  }),
+});
+
+// Export hooks
+export const {
+  useGetPostsQuery,
+  useGetPostQuery,
+  useCreatePostMutation,
+  useUpdatePostMutation,
+  useDeletePostMutation,
+} = api;
+```
+
+## TypeScript Generics
+
+### Query Endpoints
+
+```typescript
+// Format: build.query<ResultType, QueryArg>()
+build.query<Post, number>({
+  query: (id) => `posts/${id}`,
+});
+
+// No argument query
+build.query<Post[], void>({
+  query: () => 'posts',
+});
+
+// Object argument
+build.query<Post, { id: number; includeComments?: boolean }>({
+  query: ({ id, includeComments }) =>
+    `posts/${id}${includeComments ? '?include=comments' : ''}`,
+});
+```
+
+### Mutation Endpoints
+
+```typescript
+// Format: build.mutation<ResultType, ArgType>()
+build.mutation<Post, Partial<Post>>({
+  query: (body) => ({
+    url: 'posts',
+    method: 'POST',
+    body,
+  }),
+});
+
+// Complex argument type
+build.mutation<Post, { id: number; data: Partial<Post> }>({
+  query: ({ id, data }) => ({
+    url: `posts/${id}`,
+    method: 'PATCH',
+    body: data,
+  }),
+});
+```
+
+## Custom Base Query
+
+### TypeScript Base Query
+
+```typescript
+import { BaseQueryFn } from '@reduxjs/toolkit/query';
+
+interface CustomError {
+  status: number;
+  data: string;
+}
+
+interface CustomMeta {
+  timestamp: number;
+}
+
+const customBaseQuery: BaseQueryFn<
+  string, // Args
+  unknown, // Result
+  CustomError, // Error
+  { shout?: boolean }, // ExtraOptions
+  CustomMeta // Meta
+> = async (arg, api, extraOptions) => {
+  const meta = { timestamp: Date.now() };
+
+  if (arg === 'forceFail') {
+    return {
+      error: {
+        status: 500,
+        data: 'Intentionally failed',
+      },
+      meta,
+    };
+  }
+
+  if (extraOptions.shout) {
+    return { data: 'CONGRATULATIONS', meta };
+  }
+
+  return { data: 'success', meta };
+};
+
+export const api = createApi({
+  baseQuery: customBaseQuery,
+  endpoints: (build) => ({
+    getData: build.query({
+      query: () => 'some-data',
+      extraOptions: { shout: true },
+    }),
+  }),
+});
+```
+
+## Transform Response
+
+### TypeScript Transform Response
+
+```typescript
+interface RawPost {
+  id: number;
+  title: string;
+  created_at: string;
+}
+
+interface Post {
+  id: number;
+  title: string;
+  createdAt: Date;
+}
+
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (build) => ({
+    getPost: build.query<Post, number>({
+      query: (id) => `posts/${id}`,
+      transformResponse: (response: RawPost, meta, arg) => ({
+        id: response.id,
+        title: response.title,
+        createdAt: new Date(response.created_at),
+      }),
+    }),
+  }),
+});
+```
+
+## Query Functions
+
+### TypeScript Query Functions
+
+```typescript
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (build) => ({
+    getPost: build.query<Post, number>({
+      queryFn: async (arg, queryApi, extraOptions, baseQuery) => {
+        // TypeScript knows arg is number
+        const post: Post = {
+          id: arg,
+          title: `Post ${arg}`,
+          content: 'Generated content',
+        };
+
+        return { data: post };
+      },
+    }),
+
+    getPostWithError: build.query<Post, number>({
+      queryFn: async (arg, queryApi, extraOptions, baseQuery) => {
+        if (arg <= 0) {
+          return {
+            error: {
+              status: 400,
+              data: 'Invalid ID',
+            },
+          };
+        }
+
+        const post: Post = {
+          id: arg,
+          title: `Post ${arg}`,
+          content: 'Generated content',
+        };
+
+        return { data: post };
+      },
+    }),
+  }),
+});
+```
+
+## Using React Hooks
+
+### Query Hooks
+
+```typescript
+import { useGetPostsQuery, useGetPostQuery } from './api';
+
+function PostsList() {
+  // TypeScript infers the return type
+  const { data: posts, isLoading, error } = useGetPostsQuery();
+
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>Error: {JSON.stringify(error)}</div>;
+
+  return (
+    <ul>
+      {posts?.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+
+function PostDetail({ id }: { id: number }) {
+  const { data: post, isLoading } = useGetPostQuery(id);
+
+  if (isLoading) return <div>Loading...</div>;
+  if (!post) return <div>Post not found</div>;
+
+  return (
+    <div>
+      <h1>{post.title}</h1>
+      <p>{post.content}</p>
+    </div>
+  );
+}
+```
+
+### Mutation Hooks
+
+```typescript
+import { useCreatePostMutation, useUpdatePostMutation } from './api';
+
+function CreatePost() {
+  const [createPost, { isLoading, error }] = useCreatePostMutation();
+
+  const handleSubmit = async (formData: Partial<Post>) => {
+    try {
+      const result = await createPost(formData).unwrap();
+      console.log('Created post:', result);
+    } catch (err) {
+      console.error('Failed to create post:', err);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSubmit({ title: 'New Post', content: 'Content' });
+      }}
+    >
+      <button type="submit" disabled={isLoading}>
+        {isLoading ? 'Creating...' : 'Create Post'}
+      </button>
+    </form>
+  );
+}
+```
+
+## Conditional Queries
+
+### Using skipToken
+
+```typescript
+import { skipToken } from '@reduxjs/toolkit/query/react';
+
+function MaybePost({ id }: { id?: number }) {
+  // Use skipToken when id might be undefined
+  const { data: post } = useGetPostQuery(id ?? skipToken);
+
+  if (!id) return <div>No ID provided</div>;
+  if (!post) return <div>Loading...</div>;
+
+  return <div>{post.title}</div>;
+}
+```
+
+### Using skip Option
+
+```typescript
+function ConditionalPost({ id, enabled }: { id: number; enabled: boolean }) {
+  const { data: post } = useGetPostQuery(id, {
+    skip: !enabled,
+  });
+
+  if (!enabled) return <div>Query disabled</div>;
+  if (!post) return <div>Loading...</div>;
+
+  return <div>{post.title}</div>;
+}
+```
+
+## Error Handling
+
+### TypeScript Error Types
+
+```typescript
+import { FetchBaseQueryError } from '@reduxjs/toolkit/query';
+
+// Type guards for error handling
+function isFetchBaseQueryError(error: unknown): error is FetchBaseQueryError {
+  return typeof error === 'object' && error != null && 'status' in error;
+}
+
+function isErrorWithMessage(error: unknown): error is { message: string } {
+  return (
+    typeof error === 'object' &&
+    error != null &&
+    'message' in error &&
+    typeof (error as any).message === 'string'
+  );
+}
+
+function PostList() {
+  const { data: posts, error, isLoading } = useGetPostsQuery();
+
+  if (isLoading) return <div>Loading...</div>;
+
+  if (error) {
+    if (isFetchBaseQueryError(error)) {
+      // Handle fetch error
+      const errMsg =
+        'error' in error ? error.error : JSON.stringify(error.data);
+      return <div>Fetch error: {errMsg}</div>;
+    } else if (isErrorWithMessage(error)) {
+      // Handle error with message
+      return <div>Error: {error.message}</div>;
+    }
+  }
+
+  return (
+    <ul>
+      {posts?.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Cache Tags
+
+### TypeScript Cache Tags
+
+```typescript
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  tagTypes: ['Post', 'User'],
+  endpoints: (build) => ({
+    getPosts: build.query<Post[], void>({
+      query: () => 'posts',
+      providesTags: (result) =>
+        result
+          ? [
+              // Cast as const to prevent type broadening
+              ...result.map(({ id }) => ({ type: 'Post' as const, id })),
+              { type: 'Post', id: 'LIST' },
+            ]
+          : [{ type: 'Post', id: 'LIST' }],
+    }),
+
+    getPost: build.query<Post, number>({
+      query: (id) => `posts/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Post', id }],
+    }),
+
+    updatePost: build.mutation<Post, Partial<Post> & Pick<Post, 'id'>>({
+      query: ({ id, ...patch }) => ({
+        url: `posts/${id}`,
+        method: 'PATCH',
+        body: patch,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Post', id }],
+    }),
+  }),
+});
+```
+
+## Select From Result
+
+### TypeScript Select From Result
+
+```typescript
+function PostsList() {
+  const { data: posts } = useGetPostsQuery();
+
+  return (
+    <ul>
+      {posts?.map((post) => (
+        <PostById key={post.id} id={post.id} />
+      ))}
+    </ul>
+  );
+}
+
+function PostById({ id }: { id: number }) {
+  // Select specific post from the list
+  const { post } = useGetPostsQuery(undefined, {
+    selectFromResult: ({ data }) => ({
+      post: data?.find((post) => post.id === id),
+    }),
+  });
+
+  return <li>{post?.title}</li>;
+}
+
+// Stable empty array reference
+const emptyArray: Post[] = [];
+
+function PostsListWithStableArray() {
+  const { posts } = useGetPostsQuery(undefined, {
+    selectFromResult: ({ data }) => ({
+      posts: data ?? emptyArray,
+    }),
+  });
+
+  return (
+    <ul>
+      {posts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+## Infinite Queries
+
+### TypeScript Infinite Queries
+
+```typescript
+interface Post {
+  id: number;
+  title: string;
+  content: string;
+}
+
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (build) => ({
+    getInfinitePosts: build.infiniteQuery<Post[], void, number>({
+      query: ({ pageParam }) => `posts?page=${pageParam}`,
+      initialPageParam: 1,
+      getNextPageParam: (lastPage, allPages, lastPageParam) => {
+        // Return next page number or undefined if no more pages
+        return lastPage.length > 0 ? lastPageParam + 1 : undefined;
+      },
+      getPreviousPageParam: (firstPage, allPages, firstPageParam) => {
+        return firstPageParam > 1 ? firstPageParam - 1 : undefined;
+      },
+    }),
+  }),
+});
+
+function InfinitePostsList() {
+  const {
+    data,
+    fetchNextPage,
+    fetchPreviousPage,
+    hasNextPage,
+    hasPreviousPage,
+    isFetchingNextPage,
+    isFetchingPreviousPage,
+  } = useGetInfinitePostsQuery();
+
+  const allPosts = data?.pages.flat() ?? [];
+
+  return (
+    <div>
+      <ul>
+        {allPosts.map((post) => (
+          <li key={post.id}>{post.title}</li>
+        ))}
+      </ul>
+
+      <div>
+        <button
+          onClick={() => fetchPreviousPage()}
+          disabled={!hasPreviousPage || isFetchingPreviousPage}
+        >
+          {isFetchingPreviousPage ? 'Loading...' : 'Previous'}
+        </button>
+
+        <button
+          onClick={() => fetchNextPage()}
+          disabled={!hasNextPage || isFetchingNextPage}
+        >
+          {isFetchingNextPage ? 'Loading...' : 'Next'}
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+## Schema Validation
+
+### Using Valibot
+
+```typescript
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import * as v from 'valibot';
+
+const postSchema = v.object({
+  id: v.number(),
+  title: v.string(),
+  content: v.string(),
+});
+
+type Post = v.InferOutput<typeof postSchema>;
+
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (build) => ({
+    getPost: build.query<Post, number>({
+      query: (id) => `posts/${id}`,
+      responseSchema: postSchema,
+    }),
+
+    getTransformedPost: build.query<Post & { createdAt: Date }, number>({
+      query: (id) => `posts/${id}`,
+      rawResponseSchema: postSchema,
+      transformResponse: (response) => ({
+        ...response,
+        createdAt: new Date(),
+      }),
+    }),
+  }),
+});
+```
+
+## Store Configuration
+
+### TypeScript Store Setup
+
+```typescript
+import { configureStore } from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
+import { api } from './api';
+
+export const store = configureStore({
+  reducer: {
+    [api.reducerPath]: api.reducer,
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(api.middleware),
+});
+
+// Enable listener behavior
+setupListeners(store.dispatch);
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+## Advanced Patterns
+
+### Optimistic Updates
+
+```typescript
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  tagTypes: ['Post'],
+  endpoints: (build) => ({
+    updatePost: build.mutation<Post, Partial<Post> & Pick<Post, 'id'>>({
+      query: ({ id, ...patch }) => ({
+        url: `posts/${id}`,
+        method: 'PATCH',
+        body: patch,
+      }),
+      async onQueryStarted({ id, ...patch }, { dispatch, queryFulfilled }) {
+        // Optimistic update
+        const patchResult = dispatch(
+          api.util.updateQueryData('getPost', id, (draft) => {
+            Object.assign(draft, patch);
+          })
+        );
+
+        try {
+          await queryFulfilled;
+        } catch {
+          // Revert on error
+          patchResult.undo();
+        }
+      },
+    }),
+  }),
+});
+```
+
+### Custom Hooks
+
+```typescript
+// Custom hook with TypeScript
+function usePostWithFallback(id: number | null) {
+  const { data: post, isLoading, error } = useGetPostQuery(id ?? skipToken);
+
+  return {
+    post: post ?? null,
+    isLoading,
+    error,
+    hasData: !!post,
+  };
+}
+
+// Usage
+function PostComponent({ id }: { id: number | null }) {
+  const { post, isLoading, hasData } = usePostWithFallback(id);
+
+  if (!id) return <div>No ID provided</div>;
+  if (isLoading) return <div>Loading...</div>;
+  if (!hasData) return <div>No data</div>;
+
+  return <div>{post.title}</div>;
+}
+```
+
+## Best Practices
+
+### 1. Type Safety
+
+```typescript
+// Always define types for your data
+interface Post {
+  id: number;
+  title: string;
+  content: string;
+  author: {
+    id: number;
+    name: string;
+  };
+}
+
+// Use generics in endpoint definitions
+build.query<Post, number>({
+  query: (id) => `posts/${id}`,
+});
+```
+
+### 2. Error Handling
+
+```typescript
+// Use type guards for error handling
+function handleError(error: unknown) {
+  if (isFetchBaseQueryError(error)) {
+    // Handle fetch errors
+    return `Fetch error: ${error.status}`;
+  }
+
+  if (isErrorWithMessage(error)) {
+    // Handle errors with messages
+    return error.message;
+  }
+
+  return 'Unknown error';
+}
+```
+
+### 3. Cache Management
+
+```typescript
+// Use proper cache tags
+providesTags: (result) =>
+  result
+    ? [
+        ...result.map(({ id }) => ({ type: 'Post' as const, id })),
+        { type: 'Post', id: 'LIST' },
+      ]
+    : [{ type: 'Post', id: 'LIST' }],
+
+// Invalidate appropriate tags
+invalidatesTags: (result, error, { id }) => [{ type: 'Post', id }],
+```
+
+### 4. Performance
+
+```typescript
+// Use selectFromResult for performance
+const { post } = useGetPostsQuery(undefined, {
+  selectFromResult: ({ data }) => ({
+    post: data?.find((post) => post.id === id),
+  }),
+});
+
+// Use stable references
+const emptyArray: Post[] = [];
+```
+
+## Common Issues & Solutions
+
+### 1. Circular Type Dependencies
+
+```typescript
+// Break circular dependencies with explicit types
+const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (build) => ({
+    getTodos: build.query<Todo[], void>({
+      async queryFn() {
+        const state = getState() as RootState;
+        // Use explicit type casting
+        return { data: [] };
+      },
+    }),
+  }),
+});
+```
+
+### 2. Generic Constraints
+
+```typescript
+// Use proper generic constraints
+interface BaseEntity {
+  id: number;
+}
+
+interface Post extends BaseEntity {
+  title: string;
+}
+
+build.query<Post, number>({
+  query: (id) => `posts/${id}`,
+});
+```
+
+### 3. Conditional Types
+
+```typescript
+// Handle conditional types properly
+type QueryArg = number | void;
+
+build.query<Post, QueryArg>({
+  query: (id) => {
+    if (typeof id === 'number') {
+      return `posts/${id}`;
+    }
+    return 'posts';
+  },
+});
+```
+
+## Testing
+
+### TypeScript Testing
+
+```typescript
+import { renderHook, waitFor } from '@testing-library/react';
+import { useGetPostQuery } from './api';
+
+test('useGetPostQuery returns post data', async () => {
+  const { result } = renderHook(() => useGetPostQuery(1));
+
+  await waitFor(() => {
+    expect(result.current.isSuccess).toBe(true);
+  });
+
+  expect(result.current.data).toEqual({
+    id: 1,
+    title: 'Test Post',
+    content: 'Test Content',
+  });
+});
+```
+
+## Server-Side Rendering with Next.js
+
+RTK Query supports Server-Side Rendering (SSR) with Next.js via rehydration in combination with `next-redux-wrapper`.
+
+### Setup
+
+#### 1. Install Dependencies
+
+```bash
+npm install next-redux-wrapper
+```
+
+#### 2. Store Configuration
+
+```typescript
+// store/store.ts
+import { configureStore } from '@reduxjs/toolkit';
+import { createWrapper } from 'next-redux-wrapper';
+import { api } from './api';
+
+export const makeStore = () =>
+  configureStore({
+    reducer: {
+      [api.reducerPath]: api.reducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(api.middleware),
+  });
+
+export type AppStore = ReturnType<typeof makeStore>;
+export type RootState = ReturnType<AppStore['getState']>;
+export type AppDispatch = AppStore['dispatch'];
+
+export const wrapper = createWrapper<AppStore>(makeStore, {
+  debug: process.env.NODE_ENV === 'development',
+});
+```
+
+#### 3. API Configuration with Rehydration
+
+```typescript
+// store/api.ts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { Action, PayloadAction } from '@reduxjs/toolkit';
+import { HYDRATE } from 'next-redux-wrapper';
+
+type RootState = any; // normally inferred from state
+
+function isHydrateAction(action: Action): action is PayloadAction<RootState> {
+  return action.type === HYDRATE;
+}
+
+export const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  extractRehydrationInfo(action, { reducerPath }): any {
+    if (isHydrateAction(action)) {
+      return action.payload[reducerPath];
+    }
+  },
+  endpoints: (build) => ({
+    getPosts: build.query<Post[], void>({
+      query: () => 'posts',
+    }),
+    getPost: build.query<Post, number>({
+      query: (id) => `posts/${id}`,
+    }),
+  }),
+});
+```
+
+#### 4. Next.js App Configuration
+
+```typescript
+// pages/_app.tsx
+import type { AppProps } from 'next/app';
+import { wrapper } from '../store/store';
+
+function MyApp({ Component, pageProps }: AppProps) {
+  return <Component {...pageProps} />;
+}
+
+export default wrapper.withRedux(MyApp);
+```
+
+### Pre-fetching Data
+
+#### getStaticProps
+
+```typescript
+// pages/posts/[id].tsx
+import { GetStaticProps, GetStaticPaths } from 'next';
+import { wrapper } from '../../store/store';
+import { api } from '../../store/api';
+
+export const getStaticPaths: GetStaticPaths = async () => {
+  // Pre-fetch all post IDs
+  const store = wrapper.getServerSideProps(() => ({}));
+  await store.dispatch(api.endpoints.getPosts.initiate());
+
+  const posts = api.endpoints.getPosts.select()(store.getState()).data || [];
+
+  const paths = posts.map((post) => ({
+    params: { id: post.id.toString() },
+  }));
+
+  return {
+    paths,
+    fallback: 'blocking',
+  };
+};
+
+export const getStaticProps: GetStaticProps = wrapper.getStaticProps(
+  (store) =>
+    async ({ params }) => {
+      const id = Number(params?.id);
+
+      // Pre-fetch the specific post
+      await store.dispatch(api.endpoints.getPost.initiate(id));
+
+      // Wait for all queries to complete
+      await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+      return {
+        props: {},
+        revalidate: 60, // Revalidate every 60 seconds
+      };
+    }
+);
+
+function PostPage() {
+  const { id } = useRouter().query;
+  const { data: post, isLoading } = api.useGetPostQuery(Number(id));
+
+  if (isLoading) return <div>Loading...</div>;
+  if (!post) return <div>Post not found</div>;
+
+  return (
+    <div>
+      <h1>{post.title}</h1>
+      <p>{post.content}</p>
+    </div>
+  );
+}
+
+export default PostPage;
+```
+
+#### getServerSideProps
+
+```typescript
+// pages/posts/index.tsx
+import { GetServerSideProps } from 'next';
+import { wrapper } from '../../store/store';
+import { api } from '../../store/api';
+
+export const getServerSideProps: GetServerSideProps =
+  wrapper.getServerSideProps((store) => async () => {
+    // Pre-fetch posts
+    await store.dispatch(api.endpoints.getPosts.initiate());
+
+    // Wait for all queries to complete
+    await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+    return {
+      props: {},
+    };
+  });
+
+function PostsPage() {
+  const { data: posts, isLoading } = api.useGetPostsQuery();
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      <h1>Posts</h1>
+      <ul>
+        {posts?.map((post) => (
+          <li key={post.id}>
+            <Link href={`/posts/${post.id}`}>{post.title}</Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default PostsPage;
+```
+
+### TypeScript with SSR
+
+#### Proper Type Definitions
+
+```typescript
+// types/next-redux-wrapper.d.ts
+import { store } from '../store/store';
+
+declare module 'next-redux-wrapper' {
+  export interface DefaultState extends ReturnType<typeof store.getState> {}
+}
+
+// types/store.d.ts
+import { store } from '../store/store';
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+```
+
+#### Typed SSR Components
+
+```typescript
+// components/PostsList.tsx
+import { GetServerSideProps } from 'next';
+import { wrapper } from '../store/store';
+import { api } from '../store/api';
+
+interface PostsListProps {
+  initialData?: Post[];
+}
+
+export const getServerSideProps: GetServerSideProps<PostsListProps> =
+  wrapper.getServerSideProps((store) => async () => {
+    await store.dispatch(api.endpoints.getPosts.initiate());
+    await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+    const posts = api.endpoints.getPosts.select()(store.getState()).data;
+
+    return {
+      props: {
+        initialData: posts || [],
+      },
+    };
+  });
+
+function PostsList({ initialData }: PostsListProps) {
+  const { data: posts = initialData, isLoading } = api.useGetPostsQuery();
+
+  return (
+    <div>
+      {posts?.map((post) => (
+        <div key={post.id}>{post.title}</div>
+      ))}
+    </div>
+  );
+}
+
+export default PostsList;
+```
+
+### Advanced SSR Patterns
+
+#### Conditional Pre-fetching
+
+```typescript
+export const getServerSideProps: GetServerSideProps =
+  wrapper.getServerSideProps((store) => async ({ req, query }) => {
+    // Only pre-fetch if user is authenticated
+    const token = req.cookies.token;
+
+    if (token) {
+      await store.dispatch(api.endpoints.getUserPosts.initiate());
+      await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+    }
+
+    return {
+      props: {
+        isAuthenticated: !!token,
+      },
+    };
+  });
+```
+
+#### Error Handling in SSR
+
+```typescript
+export const getServerSideProps: GetServerSideProps =
+  wrapper.getServerSideProps((store) => async () => {
+    try {
+      await store.dispatch(api.endpoints.getPosts.initiate());
+      await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+      return {
+        props: {},
+      };
+    } catch (error) {
+      return {
+        props: {
+          error: 'Failed to load posts',
+        },
+      };
+    }
+  });
+```
+
+#### Revalidation with ISR
+
+```typescript
+export const getStaticProps: GetStaticProps = wrapper.getStaticProps(
+  (store) => async () => {
+    await store.dispatch(api.endpoints.getPosts.initiate());
+    await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+    return {
+      props: {},
+      revalidate: 900, // Revalidate every 15 minutes
+    };
+  }
+);
+```
+
+### Memory Management
+
+#### Cleanup on Page Unmount
+
+```typescript
+// pages/_app.tsx
+import { useEffect } from 'react';
+import { useRouter } from 'next/router';
+import { wrapper } from '../store/store';
+
+function MyApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      // Reset API state when navigating away
+      // This prevents memory leaks in development
+      if (process.env.NODE_ENV === 'development') {
+        // Optional: Reset API state
+        // store.dispatch(api.util.resetApiState());
+      }
+    };
+
+    router.events.on('routeChangeStart', handleRouteChange);
+
+    return () => {
+      router.events.off('routeChangeStart', handleRouteChange);
+    };
+  }, [router]);
+
+  return <Component {...pageProps} />;
+}
+
+export default wrapper.withRedux(MyApp);
+```
+
+### Best Practices for SSR
+
+#### 1. Selective Pre-fetching
+
+```typescript
+// Only pre-fetch essential data
+export const getServerSideProps = wrapper.getServerSideProps(
+  (store) =>
+    async ({ query }) => {
+      const { category } = query;
+
+      // Only pre-fetch if category is provided
+      if (category) {
+        await store.dispatch(
+          api.endpoints.getPostsByCategory.initiate(category as string)
+        );
+      }
+
+      await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+      return { props: {} };
+    }
+);
+```
+
+#### 2. Optimize for Static Generation
+
+```typescript
+// Use ISR for better performance
+export const getStaticProps = wrapper.getStaticProps((store) => async () => {
+  await store.dispatch(api.endpoints.getPosts.initiate());
+  await Promise.all(store.dispatch(api.util.getRunningQueriesThunk()));
+
+  return {
+    props: {},
+    revalidate: 3600, // Revalidate every hour
+  };
+});
+```
+
+#### 3. Handle Loading States
+
+```typescript
+function PostPage() {
+  const { id } = useRouter().query;
+  const { data: post, isLoading, isFetching } = api.useGetPostQuery(Number(id));
+
+  // Show skeleton during SSR hydration
+  if (isLoading) return <PostSkeleton />;
+
+  // Show subtle loading indicator during re-fetch
+  if (isFetching) return <PostContent post={post} isRefetching />;
+
+  return <PostContent post={post} />;
+}
+```
+
+This comprehensive guide covers all aspects of using RTK Query with TypeScript, from basic setup to advanced patterns and best practices, including server-side rendering with Next.js.

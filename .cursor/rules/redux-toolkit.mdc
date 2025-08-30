@@ -1,0 +1,784 @@
+# Redux Toolkit
+
+## Overview
+
+Redux Toolkit is the official, opinionated, batteries-included toolset for efficient Redux development. It's written in TypeScript and provides excellent type safety when used with TypeScript 4.1+.
+
+## Prerequisites
+
+- **TypeScript 4.1+** - Required for best results
+- **React Redux** - For React integration
+- **Next.js** - For Next.js specific patterns
+
+## Basic Setup
+
+### 1. Installation
+
+```bash
+npm install @reduxjs/toolkit react-redux
+```
+
+### 2. Store Configuration
+
+```typescript
+// lib/store.ts
+import { configureStore } from '@reduxjs/toolkit';
+import counterReducer from './features/counter/counterSlice';
+import postsReducer from './features/posts/postsSlice';
+
+export const makeStore = () => {
+  return configureStore({
+    reducer: {
+      counter: counterReducer,
+      posts: postsReducer,
+    },
+  });
+};
+
+// Infer the type of makeStore
+export type AppStore = ReturnType<typeof makeStore>;
+// Infer the `RootState` and `AppDispatch` types from the store itself
+export type RootState = ReturnType<AppStore['getState']>;
+export type AppDispatch = AppStore['dispatch'];
+```
+
+### 3. Typed Hooks
+
+```typescript
+// lib/hooks.ts
+import { useDispatch, useSelector, useStore } from 'react-redux';
+import type { RootState, AppDispatch, AppStore } from './store';
+
+// Use throughout your app instead of plain `useDispatch` and `useSelector`
+export const useAppDispatch = useDispatch.withTypes<AppDispatch>();
+export const useAppSelector = useSelector.withTypes<RootState>();
+export const useAppStore = useStore.withTypes<AppStore>();
+```
+
+## Creating Slices
+
+### Basic Slice with TypeScript
+
+```typescript
+// lib/features/counter/counterSlice.ts
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { RootState } from '../../store';
+
+// Define a type for the slice state
+interface CounterState {
+  value: number;
+  status: 'idle' | 'loading' | 'failed';
+}
+
+// Define the initial state using that type
+const initialState: CounterState = {
+  value: 0,
+  status: 'idle',
+};
+
+export const counterSlice = createSlice({
+  name: 'counter',
+  // `createSlice` will infer the state type from the `initialState` argument
+  initialState,
+  reducers: {
+    increment: (state) => {
+      state.value += 1;
+    },
+    decrement: (state) => {
+      state.value -= 1;
+    },
+    // Use the PayloadAction type to declare the contents of `action.payload`
+    incrementByAmount: (state, action: PayloadAction<number>) => {
+      state.value += action.payload;
+    },
+    setStatus: (state, action: PayloadAction<CounterState['status']>) => {
+      state.status = action.payload;
+    },
+  },
+});
+
+export const { increment, decrement, incrementByAmount, setStatus } =
+  counterSlice.actions;
+
+// Other code such as selectors can use the imported `RootState` type
+export const selectCount = (state: RootState) => state.counter.value;
+export const selectStatus = (state: RootState) => state.counter.status;
+
+export default counterSlice.reducer;
+```
+
+### Slice with Async Thunks
+
+```typescript
+// lib/features/posts/postsSlice.ts
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import type { RootState } from '../../store';
+
+interface Post {
+  id: number;
+  title: string;
+  content: string;
+  userId: number;
+}
+
+interface PostsState {
+  posts: Post[];
+  status: 'idle' | 'loading' | 'succeeded' | 'failed';
+  error: string | null;
+}
+
+const initialState: PostsState = {
+  posts: [],
+  status: 'idle',
+  error: null,
+};
+
+// Async thunk for fetching posts
+export const fetchPosts = createAsyncThunk<
+  Post[],
+  void,
+  {
+    rejectValue: string;
+  }
+>('posts/fetchPosts', async (_, { rejectWithValue }) => {
+  try {
+    const response = await fetch('/api/posts');
+    if (!response.ok) {
+      throw new Error('Failed to fetch posts');
+    }
+    return response.json();
+  } catch (error) {
+    return rejectWithValue(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+  }
+});
+
+export const postsSlice = createSlice({
+  name: 'posts',
+  initialState,
+  reducers: {
+    addPost: (state, action: PayloadAction<Post>) => {
+      state.posts.push(action.payload);
+    },
+    removePost: (state, action: PayloadAction<number>) => {
+      state.posts = state.posts.filter((post) => post.id !== action.payload);
+    },
+    updatePost: (
+      state,
+      action: PayloadAction<Partial<Post> & { id: number }>
+    ) => {
+      const index = state.posts.findIndex(
+        (post) => post.id === action.payload.id
+      );
+      if (index !== -1) {
+        state.posts[index] = { ...state.posts[index], ...action.payload };
+      }
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchPosts.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchPosts.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.posts = action.payload;
+      })
+      .addCase(fetchPosts.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload || 'Failed to fetch posts';
+      });
+  },
+});
+
+export const { addPost, removePost, updatePost } = postsSlice.actions;
+
+// Selectors
+export const selectAllPosts = (state: RootState) => state.posts.posts;
+export const selectPostsStatus = (state: RootState) => state.posts.status;
+export const selectPostsError = (state: RootState) => state.posts.error;
+export const selectPostById = (state: RootState, postId: number) =>
+  state.posts.posts.find((post) => post.id === postId);
+
+export default postsSlice.reducer;
+```
+
+## Using in Components
+
+### Basic Component Usage
+
+```typescript
+// components/Counter.tsx
+'use client';
+import React from 'react';
+import { useAppSelector, useAppDispatch } from '../lib/hooks';
+import {
+  increment,
+  decrement,
+  incrementByAmount,
+  selectCount,
+} from '../lib/features/counter/counterSlice';
+
+export function Counter() {
+  const count = useAppSelector(selectCount);
+  const dispatch = useAppDispatch();
+
+  return (
+    <div>
+      <div>
+        <button
+          aria-label="Increment value"
+          onClick={() => dispatch(increment())}
+        >
+          Increment
+        </button>
+        <span>{count}</span>
+        <button
+          aria-label="Decrement value"
+          onClick={() => dispatch(decrement())}
+        >
+          Decrement
+        </button>
+      </div>
+      <div>
+        <input
+          aria-label="Set increment amount"
+          value={incrementAmount}
+          onChange={(e) => setIncrementAmount(Number(e.target.value) || 0)}
+        />
+        <button onClick={() => dispatch(incrementByAmount(incrementAmount))}>
+          Add Amount
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Component with Async Data
+
+```typescript
+// components/PostsList.tsx
+'use client';
+import React, { useEffect } from 'react';
+import { useAppSelector, useAppDispatch } from '../lib/hooks';
+import {
+  fetchPosts,
+  selectAllPosts,
+  selectPostsStatus,
+  selectPostsError,
+} from '../lib/features/posts/postsSlice';
+
+export function PostsList() {
+  const posts = useAppSelector(selectAllPosts);
+  const status = useAppSelector(selectPostsStatus);
+  const error = useAppSelector(selectPostsError);
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    if (status === 'idle') {
+      dispatch(fetchPosts());
+    }
+  }, [status, dispatch]);
+
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
+
+  if (status === 'failed') {
+    return <div>Error: {error}</div>;
+  }
+
+  return (
+    <div>
+      <h2>Posts</h2>
+      {posts.map((post) => (
+        <article key={post.id}>
+          <h3>{post.title}</h3>
+          <p>{post.content}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+```
+
+## Next.js Integration
+
+### Store Provider for Next.js App Router
+
+```typescript
+// app/StoreProvider.tsx
+'use client';
+import { useRef } from 'react';
+import { Provider } from 'react-redux';
+import { makeStore, AppStore } from '../lib/store';
+
+export default function StoreProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const storeRef = useRef<AppStore>();
+  if (!storeRef.current) {
+    // Create the store instance the first time this renders
+    storeRef.current = makeStore();
+  }
+
+  return <Provider store={storeRef.current}>{children}</Provider>;
+}
+```
+
+### Layout Integration
+
+```typescript
+// app/layout.tsx
+import StoreProvider from './StoreProvider';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <StoreProvider>{children}</StoreProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Per-Route State Management
+
+```typescript
+// components/ProductName.tsx
+'use client';
+import { useRef } from 'react';
+import { useAppSelector, useAppDispatch, useAppStore } from '../lib/hooks';
+import {
+  initializeProduct,
+  setProductName,
+  Product,
+} from '../lib/features/product/productSlice';
+
+export default function ProductName({ product }: { product: Product }) {
+  // Initialize the store with the product information
+  const store = useAppStore();
+  const initialized = useRef(false);
+  if (!initialized.current) {
+    store.dispatch(initializeProduct(product));
+    initialized.current = true;
+  }
+
+  const name = useAppSelector((state) => state.product.name);
+  const dispatch = useAppDispatch();
+
+  return (
+    <input
+      value={name}
+      onChange={(e) => dispatch(setProductName(e.target.value))}
+    />
+  );
+}
+```
+
+## Advanced Patterns
+
+### Entity Adapter
+
+```typescript
+// lib/features/users/usersSlice.ts
+import {
+  createSlice,
+  createEntityAdapter,
+  createAsyncThunk,
+} from '@reduxjs/toolkit';
+import type { RootState } from '../../store';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+
+const usersAdapter = createEntityAdapter<User>();
+
+const initialState = usersAdapter.getInitialState({
+  status: 'idle' as 'idle' | 'loading' | 'succeeded' | 'failed',
+  error: null as string | null,
+});
+
+export const fetchUsers = createAsyncThunk<User[], void>(
+  'users/fetchUsers',
+  async () => {
+    const response = await fetch('/api/users');
+    return response.json();
+  }
+);
+
+export const usersSlice = createSlice({
+  name: 'users',
+  initialState,
+  reducers: {
+    addUser: usersAdapter.addOne,
+    updateUser: usersAdapter.updateOne,
+    removeUser: usersAdapter.removeOne,
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUsers.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        usersAdapter.upsertMany(state, action.payload);
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.error.message || 'Failed to fetch users';
+      });
+  },
+});
+
+export const { addUser, updateUser, removeUser } = usersSlice.actions;
+
+// Export the customized selectors for this adapter using `getSelectors`
+export const {
+  selectAll: selectAllUsers,
+  selectById: selectUserById,
+  selectIds: selectUserIds,
+  selectTotal: selectTotalUsers,
+} = usersAdapter.getSelectors<RootState>((state) => state.users);
+
+export default usersSlice.reducer;
+```
+
+### Custom Middleware
+
+```typescript
+// lib/middleware/logger.ts
+import { Middleware } from '@reduxjs/toolkit';
+
+export const loggerMiddleware: Middleware = (store) => (next) => (action) => {
+  console.log('Dispatching:', action);
+  const result = next(action);
+  console.log('Next State:', store.getState());
+  return result;
+};
+
+// lib/store.ts
+import { configureStore } from '@reduxjs/toolkit';
+import { loggerMiddleware } from './middleware/logger';
+
+export const makeStore = () => {
+  return configureStore({
+    reducer: {
+      // ... your reducers
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(loggerMiddleware),
+  });
+};
+```
+
+### Persistence with Redux Persist
+
+```typescript
+// lib/store.ts
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
+import {
+  persistStore,
+  persistReducer,
+  FLUSH,
+  REHYDRATE,
+  PAUSE,
+  PERSIST,
+  PURGE,
+  REGISTER,
+} from 'redux-persist';
+import storage from 'redux-persist/lib/storage';
+
+const persistConfig = {
+  key: 'root',
+  version: 1,
+  storage,
+  blacklist: ['api'], // Don't persist RTK Query cache
+};
+
+const rootReducer = combineReducers({
+  counter: counterReducer,
+  posts: postsReducer,
+  users: usersReducer,
+});
+
+const persistedReducer = persistReducer(persistConfig, rootReducer);
+
+export const makeStore = () => {
+  const store = configureStore({
+    reducer: persistedReducer,
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware({
+        serializableCheck: {
+          ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
+        },
+      }),
+  });
+
+  return store;
+};
+
+// app/StoreProvider.tsx
+('use client');
+import { useRef } from 'react';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
+import { makeStore, AppStore } from '../lib/store';
+import { persistStore } from 'redux-persist';
+
+export default function StoreProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const storeRef = useRef<AppStore>();
+  const persistorRef = useRef<any>();
+
+  if (!storeRef.current) {
+    storeRef.current = makeStore();
+    persistorRef.current = persistStore(storeRef.current);
+  }
+
+  return (
+    <Provider store={storeRef.current}>
+      <PersistGate loading={null} persistor={persistorRef.current}>
+        {children}
+      </PersistGate>
+    </Provider>
+  );
+}
+```
+
+## RTK Query Integration
+
+### API Slice
+
+```typescript
+// lib/services/api.ts
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+
+export const api = createApi({
+  reducerPath: 'api',
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  tagTypes: ['Post', 'User'],
+  endpoints: (builder) => ({
+    getPosts: builder.query<Post[], void>({
+      query: () => 'posts',
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ id }) => ({ type: 'Post' as const, id })),
+              { type: 'Post', id: 'LIST' },
+            ]
+          : [{ type: 'Post', id: 'LIST' }],
+    }),
+    getPost: builder.query<Post, number>({
+      query: (id) => `posts/${id}`,
+      providesTags: (result, error, id) => [{ type: 'Post', id }],
+    }),
+    createPost: builder.mutation<Post, Partial<Post>>({
+      query: (body) => ({
+        url: 'posts',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: [{ type: 'Post', id: 'LIST' }],
+    }),
+    updatePost: builder.mutation<Post, Partial<Post> & Pick<Post, 'id'>>({
+      query: ({ id, ...patch }) => ({
+        url: `posts/${id}`,
+        method: 'PATCH',
+        body: patch,
+      }),
+      invalidatesTags: (result, error, { id }) => [{ type: 'Post', id }],
+    }),
+  }),
+});
+
+export const {
+  useGetPostsQuery,
+  useGetPostQuery,
+  useCreatePostMutation,
+  useUpdatePostMutation,
+} = api;
+
+// lib/store.ts
+import { api } from './services/api';
+
+export const makeStore = () => {
+  return configureStore({
+    reducer: {
+      [api.reducerPath]: api.reducer,
+      counter: counterReducer,
+      posts: postsReducer,
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(api.middleware),
+  });
+};
+```
+
+## Best Practices
+
+### 1. Type Safety
+
+```typescript
+// Always define types for your state
+interface AppState {
+  counter: CounterState;
+  posts: PostsState;
+  users: UsersState;
+}
+
+// Use proper generic constraints
+interface BaseEntity {
+  id: number;
+}
+
+interface Post extends BaseEntity {
+  title: string;
+  content: string;
+}
+```
+
+### 2. Selector Optimization
+
+```typescript
+// Use memoized selectors for performance
+import { createSelector } from '@reduxjs/toolkit';
+
+export const selectPostsByUser = createSelector(
+  [selectAllPosts, (state: RootState, userId: number) => userId],
+  (posts, userId) => posts.filter((post) => post.userId === userId)
+);
+
+export const selectPostCount = createSelector(
+  [selectAllPosts],
+  (posts) => posts.length
+);
+```
+
+### 3. Error Handling
+
+```typescript
+// Proper error handling in async thunks
+export const fetchPosts = createAsyncThunk<
+  Post[],
+  void,
+  {
+    rejectValue: string;
+    state: RootState;
+  }
+>('posts/fetchPosts', async (_, { rejectWithValue, getState }) => {
+  try {
+    const response = await fetch('/api/posts');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    return rejectWithValue(
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+  }
+});
+```
+
+### 4. Next.js Specific Patterns
+
+```typescript
+// Route-specific data initialization
+export const initializeRouteData = createAsyncThunk<
+  void,
+  { posts: Post[]; users: User[] },
+  { state: RootState }
+>('app/initializeRouteData', async (data, { dispatch }) => {
+  dispatch(setPosts(data.posts));
+  dispatch(setUsers(data.users));
+});
+
+// Cache invalidation for Next.js
+export const invalidateCache = createAsyncThunk(
+  'app/invalidateCache',
+  async (_, { dispatch }) => {
+    // Invalidate RTK Query cache
+    dispatch(api.util.invalidateTags(['Post', 'User']));
+  }
+);
+```
+
+## Common Issues & Solutions
+
+### 1. Circular Dependencies
+
+```typescript
+// Break circular dependencies with explicit types
+const api = createApi({
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  endpoints: (builder) => ({
+    getTodos: builder.query<Todo[], void>({
+      async queryFn() {
+        const state = getState() as RootState;
+        // Use explicit type casting
+        return { data: [] };
+      },
+    }),
+  }),
+});
+```
+
+### 2. Hydration Issues
+
+```typescript
+// Handle hydration in Next.js
+'use client';
+import { useEffect, useState } from 'react';
+
+export function HydratedComponent() {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return <div>Loading...</div>;
+  }
+
+  return <YourComponent />;
+}
+```
+
+### 3. Performance Optimization
+
+```typescript
+// Use React.memo for components that depend on specific state
+import React from 'react';
+
+export const PostItem = React.memo(({ postId }: { postId: number }) => {
+  const post = useAppSelector((state) => selectPostById(state, postId));
+
+  if (!post) return null;
+
+  return (
+    <div>
+      <h3>{post.title}</h3>
+      <p>{post.content}</p>
+    </div>
+  );
+});
+```
+
+This comprehensive guide covers all aspects of using Redux Toolkit with TypeScript in a Next.js application, from basic setup to advanced patterns and best practices.

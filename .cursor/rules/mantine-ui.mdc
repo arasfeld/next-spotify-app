@@ -1,0 +1,1104 @@
+# Mantine UI
+
+## Overview
+
+Mantine is a fully-featured React components library that provides 120+ customizable components and hooks for building modern web applications. It's built with TypeScript and provides excellent integration with Next.js.
+
+## Prerequisites
+
+- **Next.js 13+** - App Router or Pages Router
+- **TypeScript 4.1+** - For best development experience
+- **React 18+** - Required for latest features
+
+## Installation & Setup
+
+### 1. Create Next.js Application
+
+```bash
+npx create-next-app@latest --typescript my-mantine-app
+cd my-mantine-app
+```
+
+### 2. Install Core Dependencies
+
+```bash
+npm install @mantine/core @mantine/hooks
+```
+
+### 3. Install Additional Packages (Optional)
+
+```bash
+# Form management
+npm install @mantine/form
+
+# Date inputs and calendars
+npm install @mantine/dates dayjs
+
+# Charts (Recharts based)
+npm install @mantine/charts recharts
+
+# Notifications system
+npm install @mantine/notifications
+
+# Code highlighting
+npm install @mantine/code-highlight
+
+# Rich text editor
+npm install @mantine/tiptap @tiptap/react @tiptap/pm
+
+# File upload with drag & drop
+npm install @mantine/dropzone
+
+# Carousel component
+npm install @mantine/carousel embla-carousel-react
+
+# Command center overlay
+npm install @mantine/spotlight
+
+# Modal management
+npm install @mantine/modals
+
+# Navigation progress
+npm install @mantine/nprogress
+```
+
+### 4. PostCSS Configuration
+
+```bash
+npm install --save-dev postcss postcss-preset-mantine postcss-simple-vars
+```
+
+Create `postcss.config.cjs`:
+
+```javascript
+module.exports = {
+  plugins: {
+    'postcss-preset-mantine': {},
+    'postcss-simple-vars': {
+      variables: {
+        'mantine-breakpoint-xs': '36em',
+        'mantine-breakpoint-sm': '48em',
+        'mantine-breakpoint-md': '62em',
+        'mantine-breakpoint-lg': '75em',
+        'mantine-breakpoint-xl': '88em',
+      },
+    },
+  },
+};
+```
+
+## Next.js App Router Setup
+
+### Layout Configuration
+
+```typescript
+// app/layout.tsx
+import '@mantine/core/styles.css';
+import {
+  ColorSchemeScript,
+  MantineProvider,
+  mantineHtmlProps,
+} from '@mantine/core';
+
+export const metadata = {
+  title: 'My Mantine App',
+  description: 'Built with Next.js and Mantine',
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript />
+      </head>
+      <body>
+        <MantineProvider>{children}</MantineProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+### Custom Theme Configuration
+
+```typescript
+// app/layout.tsx
+import '@mantine/core/styles.css';
+import {
+  ColorSchemeScript,
+  MantineProvider,
+  mantineHtmlProps,
+  createTheme,
+} from '@mantine/core';
+
+const theme = createTheme({
+  primaryColor: 'blue',
+  fontFamily: 'Inter, sans-serif',
+  headings: {
+    fontFamily: 'Inter, sans-serif',
+  },
+  colors: {
+    brand: [
+      '#f0f9ff',
+      '#e0f2fe',
+      '#bae6fd',
+      '#7dd3fc',
+      '#38bdf8',
+      '#0ea5e9',
+      '#0284c7',
+      '#0369a1',
+      '#075985',
+      '#0c4a6e',
+    ],
+  },
+  components: {
+    Button: {
+      defaultProps: {
+        size: 'md',
+      },
+      styles: {
+        root: {
+          fontWeight: 600,
+        },
+      },
+    },
+  },
+});
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" {...mantineHtmlProps}>
+      <head>
+        <ColorSchemeScript />
+      </head>
+      <body>
+        <MantineProvider theme={theme}>{children}</MantineProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+## Next.js Pages Router Setup
+
+### App Configuration
+
+```typescript
+// pages/_app.tsx
+import '@mantine/core/styles.css';
+import type { AppProps } from 'next/app';
+import { createTheme, MantineProvider } from '@mantine/core';
+
+const theme = createTheme({
+  /** Put your mantine theme override here */
+});
+
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <MantineProvider theme={theme}>
+      <Component {...pageProps} />
+    </MantineProvider>
+  );
+}
+```
+
+### Document Configuration
+
+```typescript
+// pages/_document.tsx
+import { Head, Html, Main, NextScript } from 'next/document';
+import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
+
+export default function Document() {
+  return (
+    <Html lang="en" {...mantineHtmlProps}>
+      <Head>
+        <ColorSchemeScript defaultColorScheme="auto" />
+      </Head>
+      <body>
+        <Main />
+        <NextScript />
+      </body>
+    </Html>
+  );
+}
+```
+
+## Component Usage Patterns
+
+### Basic Component Example
+
+```typescript
+// components/UserCard.tsx
+'use client';
+import { Card, Text, Group, Badge, Avatar, Button } from '@mantine/core';
+import { IconHeart, IconMessageCircle, IconShare } from '@tabler/icons-react';
+
+interface UserCardProps {
+  user: {
+    name: string;
+    email: string;
+    avatar: string;
+    role: string;
+  };
+}
+
+export function UserCard({ user }: UserCardProps) {
+  return (
+    <Card shadow="sm" padding="lg" radius="md" withBorder>
+      <Card.Section>
+        <Avatar src={user.avatar} size="xl" radius="xl" mx="auto" mt="md" />
+      </Card.Section>
+
+      <Group justify="center" mt="md" mb="xs">
+        <Text fw={500}>{user.name}</Text>
+        <Badge color="blue" variant="light">
+          {user.role}
+        </Badge>
+      </Group>
+
+      <Text c="dimmed" size="sm" ta="center">
+        {user.email}
+      </Text>
+
+      <Group justify="center" mt="md">
+        <Button variant="light" leftSection={<IconHeart size={16} />}>
+          Like
+        </Button>
+        <Button variant="light" leftSection={<IconMessageCircle size={16} />}>
+          Message
+        </Button>
+        <Button variant="light" leftSection={<IconShare size={16} />}>
+          Share
+        </Button>
+      </Group>
+    </Card>
+  );
+}
+```
+
+### Form with Validation
+
+```typescript
+// components/UserForm.tsx
+'use client';
+import { useForm } from '@mantine/form';
+import {
+  TextInput,
+  PasswordInput,
+  Select,
+  Button,
+  Group,
+  Box,
+} from '@mantine/core';
+
+interface UserFormData {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+}
+
+export function UserForm() {
+  const form = useForm<UserFormData>({
+    mode: 'uncontrolled',
+    initialValues: {
+      name: '',
+      email: '',
+      password: '',
+      role: '',
+    },
+    validate: {
+      name: (value) =>
+        value.length < 2 ? 'Name must have at least 2 letters' : null,
+      email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
+      password: (value) =>
+        value.length < 6 ? 'Password must have at least 6 characters' : null,
+      role: (value) => (value ? null : 'Please select a role'),
+    },
+  });
+
+  const handleSubmit = (values: UserFormData) => {
+    console.log(values);
+    // Handle form submission
+  };
+
+  return (
+    <Box maw={400} mx="auto">
+      <form onSubmit={form.onSubmit(handleSubmit)}>
+        <TextInput
+          label="Name"
+          placeholder="Your name"
+          key={form.key('name')}
+          {...form.getInputProps('name')}
+        />
+
+        <TextInput
+          label="Email"
+          placeholder="your@email.com"
+          key={form.key('email')}
+          {...form.getInputProps('email')}
+        />
+
+        <PasswordInput
+          label="Password"
+          placeholder="Your password"
+          key={form.key('password')}
+          {...form.getInputProps('password')}
+        />
+
+        <Select
+          label="Role"
+          placeholder="Pick your role"
+          data={['Admin', 'User', 'Moderator']}
+          key={form.key('role')}
+          {...form.getInputProps('role')}
+        />
+
+        <Group justify="flex-end" mt="md">
+          <Button type="submit">Submit</Button>
+        </Group>
+      </form>
+    </Box>
+  );
+}
+```
+
+### Layout with AppShell
+
+```typescript
+// components/AppLayout.tsx
+'use client';
+import { AppShell, Burger, Group, Title } from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import { Navbar } from './Navbar';
+import { Header } from './Header';
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+}
+
+export function AppLayout({ children }: AppLayoutProps) {
+  const [opened, { toggle }] = useDisclosure();
+
+  return (
+    <AppShell
+      header={{ height: 60 }}
+      navbar={{ width: 300, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+      padding="md"
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md">
+          <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
+          <Title order={3}>My App</Title>
+        </Group>
+      </AppShell.Header>
+
+      <AppShell.Navbar p="md">
+        <Navbar />
+      </AppShell.Navbar>
+
+      <AppShell.Main>{children}</AppShell.Main>
+    </AppShell>
+  );
+}
+```
+
+### Data Table with Pagination
+
+```typescript
+// components/DataTable.tsx
+'use client';
+import { useState } from 'react';
+import { Table, Pagination, TextInput, Group, Text } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
+
+interface DataTableProps {
+  data: Array<{
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  }>;
+}
+
+export function DataTable({ data }: DataTableProps) {
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch] = useDebouncedValue(search, 200);
+
+  const filteredData = data.filter(
+    (item) =>
+      item.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      item.email.toLowerCase().includes(debouncedSearch.toLowerCase())
+  );
+
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const paginatedData = filteredData.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  const rows = paginatedData.map((item) => (
+    <Table.Tr key={item.id}>
+      <Table.Td>{item.name}</Table.Td>
+      <Table.Td>{item.email}</Table.Td>
+      <Table.Td>{item.role}</Table.Td>
+    </Table.Tr>
+  ));
+
+  return (
+    <div>
+      <TextInput
+        placeholder="Search by name or email..."
+        value={search}
+        onChange={(event) => setSearch(event.currentTarget.value)}
+        mb="md"
+      />
+
+      <Table>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Name</Table.Th>
+            <Table.Th>Email</Table.Th>
+            <Table.Th>Role</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>{rows}</Table.Tbody>
+      </Table>
+
+      <Group justify="center" mt="md">
+        <Pagination
+          total={totalPages}
+          value={page}
+          onChange={setPage}
+          withEdges
+        />
+      </Group>
+    </div>
+  );
+}
+```
+
+## Next.js Integration Patterns
+
+### Next.js Link with Polymorphic Components
+
+```typescript
+// components/Navigation.tsx
+'use client';
+import Link from 'next/link';
+import { Button, Group, Anchor } from '@mantine/core';
+
+export function Navigation() {
+  return (
+    <Group>
+      {/* Button with Next.js Link */}
+      <Button component={Link} href="/dashboard">
+        Dashboard
+      </Button>
+
+      {/* Anchor with Next.js Link */}
+      <Anchor component={Link} href="/profile">
+        Profile
+      </Anchor>
+    </Group>
+  );
+}
+```
+
+### Server Components with Mantine
+
+```typescript
+// app/page.tsx (Server Component)
+import { Suspense } from 'react';
+import { ClientComponent } from './ClientComponent';
+
+export default function Page() {
+  return (
+    <div>
+      <h1>Server Component</h1>
+      <Suspense fallback={<div>Loading...</div>}>
+        <ClientComponent />
+      </Suspense>
+    </div>
+  );
+}
+
+// app/ClientComponent.tsx
+('use client');
+import { Button, Card, Text } from '@mantine/core';
+
+export function ClientComponent() {
+  return (
+    <Card>
+      <Text>This is a client component with Mantine</Text>
+      <Button>Click me</Button>
+    </Card>
+  );
+}
+```
+
+### Compound Components in Server Components
+
+```typescript
+// ❌ This will not work in server components
+import { Popover } from '@mantine/core';
+
+export default function Page() {
+  return (
+    <Popover>
+      <Popover.Target>Target</Popover.Target>
+      <Popover.Dropdown>Dropdown</Popover.Dropdown>
+    </Popover>
+  );
+}
+
+// ✅ Use 'use client' directive
+('use client');
+import { Popover } from '@mantine/core';
+
+export default function Page() {
+  return (
+    <Popover>
+      <Popover.Target>Target</Popover.Target>
+      <Popover.Dropdown>Dropdown</Popover.Dropdown>
+    </Popover>
+  );
+}
+
+// ✅ Or use ComponentXXX syntax
+import { Popover, PopoverDropdown, PopoverTarget } from '@mantine/core';
+
+export default function Page() {
+  return (
+    <Popover>
+      <PopoverTarget>Trigger</PopoverTarget>
+      <PopoverDropdown>Dropdown</PopoverDropdown>
+    </Popover>
+  );
+}
+```
+
+## Advanced Patterns
+
+### Custom Hook with Mantine
+
+```typescript
+// hooks/useLocalStorage.ts
+import { useLocalStorage } from '@mantine/hooks';
+
+export function useUserPreferences() {
+  const [theme, setTheme] = useLocalStorage({
+    key: 'theme',
+    defaultValue: 'light',
+  });
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useLocalStorage({
+    key: 'sidebar-collapsed',
+    defaultValue: false,
+  });
+
+  return {
+    theme,
+    setTheme,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  };
+}
+```
+
+### Modal Management
+
+```typescript
+// components/ModalManager.tsx
+'use client';
+import { modals } from '@mantine/modals';
+import { TextInput, Button } from '@mantine/core';
+
+export function ModalManager() {
+  const openDeleteModal = () =>
+    modals.openConfirmModal({
+      title: 'Delete your profile',
+      children: (
+        <Text size="sm">
+          Are you sure you want to delete your profile? This action is
+          destructive and you will have to contact support to restore your data.
+        </Text>
+      ),
+      labels: { confirm: 'Delete account', cancel: "No don't delete it" },
+      confirmProps: { color: 'red' },
+      onCancel: () => console.log('Cancel'),
+      onConfirm: () => console.log('Confirmed'),
+    });
+
+  const openFormModal = () =>
+    modals.open({
+      title: 'Create user',
+      children: (
+        <form>
+          <TextInput label="Name" placeholder="Enter name" data-autofocus />
+          <TextInput label="Email" placeholder="Enter email" mt="md" />
+          <Button fullWidth mt="md">
+            Submit
+          </Button>
+        </form>
+      ),
+    });
+
+  return (
+    <div>
+      <Button onClick={openDeleteModal} color="red">
+        Delete Account
+      </Button>
+      <Button onClick={openFormModal} ml="md">
+        Create User
+      </Button>
+    </div>
+  );
+}
+```
+
+### Notifications System
+
+```typescript
+// components/NotificationManager.tsx
+'use client';
+import { notifications } from '@mantine/notifications';
+import { Button, Group } from '@mantine/core';
+import { IconCheck, IconX } from '@tabler/icons-react';
+
+export function NotificationManager() {
+  const showSuccess = () =>
+    notifications.show({
+      title: 'Success',
+      message: 'Operation completed successfully',
+      color: 'green',
+      icon: <IconCheck size={16} />,
+    });
+
+  const showError = () =>
+    notifications.show({
+      title: 'Error',
+      message: 'Something went wrong',
+      color: 'red',
+      icon: <IconX size={16} />,
+    });
+
+  const showLoading = () => {
+    const id = notifications.show({
+      loading: true,
+      title: 'Loading',
+      message: 'Please wait...',
+      autoClose: false,
+      withCloseButton: false,
+    });
+
+    setTimeout(() => {
+      notifications.update({
+        id,
+        color: 'green',
+        title: 'Success',
+        message: 'Operation completed',
+        icon: <IconCheck size={16} />,
+        autoClose: 2000,
+      });
+    }, 2000);
+  };
+
+  return (
+    <Group>
+      <Button onClick={showSuccess} color="green">
+        Show Success
+      </Button>
+      <Button onClick={showError} color="red">
+        Show Error
+      </Button>
+      <Button onClick={showLoading}>Show Loading</Button>
+    </Group>
+  );
+}
+```
+
+### Form with File Upload
+
+```typescript
+// components/FileUploadForm.tsx
+'use client';
+import { useForm } from '@mantine/form';
+import { TextInput, Button, Group, Box } from '@mantine/core';
+import { Dropzone, IMAGE_MIME_TYPE } from '@mantine/dropzone';
+import { IconUpload, IconPhoto, IconX } from '@tabler/icons-react';
+
+interface FileUploadFormData {
+  name: string;
+  description: string;
+  files: File[];
+}
+
+export function FileUploadForm() {
+  const form = useForm<FileUploadFormData>({
+    mode: 'uncontrolled',
+    initialValues: {
+      name: '',
+      description: '',
+      files: [],
+    },
+    validate: {
+      name: (value) =>
+        value.length < 2 ? 'Name must have at least 2 letters' : null,
+    },
+  });
+
+  const handleSubmit = (values: FileUploadFormData) => {
+    console.log(values);
+  };
+
+  return (
+    <Box maw={400} mx="auto">
+      <form onSubmit={form.onSubmit(handleSubmit)}>
+        <TextInput
+          label="Name"
+          placeholder="Enter name"
+          key={form.key('name')}
+          {...form.getInputProps('name')}
+        />
+
+        <TextInput
+          label="Description"
+          placeholder="Enter description"
+          key={form.key('description')}
+          {...form.getInputProps('description')}
+        />
+
+        <Dropzone
+          onDrop={(files) => form.setFieldValue('files', files)}
+          accept={IMAGE_MIME_TYPE}
+          maxSize={5 * 1024 ** 2}
+        >
+          <Group
+            justify="center"
+            gap="xl"
+            style={{ minHeight: 220, pointerEvents: 'none' }}
+          >
+            <Dropzone.Accept>
+              <IconUpload size={50} stroke={1.5} />
+            </Dropzone.Accept>
+            <Dropzone.Reject>
+              <IconX size={50} stroke={1.5} />
+            </Dropzone.Reject>
+            <Dropzone.Idle>
+              <IconPhoto size={50} stroke={1.5} />
+            </Dropzone.Idle>
+
+            <div>
+              <Text size="xl" inline>
+                Drag images here or click to select files
+              </Text>
+              <Text size="sm" c="dimmed" inline mt={7}>
+                Attach as many files as you like, each file should not exceed
+                5mb
+              </Text>
+            </div>
+          </Group>
+        </Dropzone>
+
+        <Group justify="flex-end" mt="md">
+          <Button type="submit">Submit</Button>
+        </Group>
+      </form>
+    </Box>
+  );
+}
+```
+
+## Configuration
+
+### Next.js Configuration for Tree Shaking
+
+```javascript
+// next.config.mjs
+export default {
+  experimental: {
+    optimizePackageImports: ['@mantine/core', '@mantine/hooks'],
+  },
+};
+```
+
+### TypeScript Configuration
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "ES6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+## Best Practices
+
+### 1. Component Organization
+
+```typescript
+// components/ui/Button.tsx - Custom button with consistent styling
+import { Button, ButtonProps } from '@mantine/core';
+
+export function CustomButton(props: ButtonProps) {
+  return <Button size="md" radius="md" {...props} />;
+}
+
+// components/ui/Card.tsx - Custom card component
+import { Card, CardProps } from '@mantine/core';
+
+export function CustomCard(props: CardProps) {
+  return <Card shadow="sm" padding="lg" radius="md" withBorder {...props} />;
+}
+```
+
+### 2. Theme Customization
+
+```typescript
+// lib/theme.ts
+import { createTheme, MantineColorsTuple } from '@mantine/core';
+
+const brandColors: MantineColorsTuple = [
+  '#f0f9ff',
+  '#e0f2fe',
+  '#bae6fd',
+  '#7dd3fc',
+  '#38bdf8',
+  '#0ea5e9',
+  '#0284c7',
+  '#0369a1',
+  '#075985',
+  '#0c4a6e',
+];
+
+export const theme = createTheme({
+  primaryColor: 'brand',
+  colors: {
+    brand: brandColors,
+  },
+  fontFamily: 'Inter, sans-serif',
+  headings: {
+    fontFamily: 'Inter, sans-serif',
+    sizes: {
+      h1: { fontSize: '2.5rem' },
+      h2: { fontSize: '2rem' },
+      h3: { fontSize: '1.5rem' },
+    },
+  },
+  components: {
+    Button: {
+      defaultProps: {
+        size: 'md',
+        radius: 'md',
+      },
+      styles: {
+        root: {
+          fontWeight: 600,
+        },
+      },
+    },
+    Card: {
+      defaultProps: {
+        shadow: 'sm',
+        padding: 'lg',
+        radius: 'md',
+        withBorder: true,
+      },
+    },
+  },
+});
+```
+
+### 3. Responsive Design
+
+```typescript
+// components/ResponsiveLayout.tsx
+'use client';
+import { Container, Grid, Stack, Box } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+
+export function ResponsiveLayout() {
+  const isMobile = useMediaQuery('(max-width: 768px)');
+
+  return (
+    <Container size="lg">
+      <Grid>
+        <Grid.Col span={{ base: 12, md: 8 }}>
+          <Box>Main Content</Box>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, md: 4 }}>
+          <Stack gap="md">
+            <Box>Sidebar Item 1</Box>
+            <Box>Sidebar Item 2</Box>
+          </Stack>
+        </Grid.Col>
+      </Grid>
+    </Container>
+  );
+}
+```
+
+### 4. Error Boundaries
+
+```typescript
+// components/ErrorBoundary.tsx
+'use client';
+import { Alert, Button, Container, Title, Text } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
+import { Component, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error('Error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Container size="sm" py="xl">
+          <Alert
+            icon={<IconAlertCircle size={16} />}
+            title="Something went wrong"
+            color="red"
+            mb="md"
+          >
+            <Text mb="md">
+              An unexpected error occurred. Please try refreshing the page.
+            </Text>
+            <Button onClick={() => window.location.reload()} variant="light">
+              Refresh Page
+            </Button>
+          </Alert>
+        </Container>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
+## Common Issues & Solutions
+
+### 1. Hydration Mismatch
+
+```typescript
+// components/HydrationSafe.tsx
+'use client';
+import { useEffect, useState } from 'react';
+import { Skeleton } from '@mantine/core';
+
+interface HydrationSafeProps {
+  children: React.ReactNode;
+  fallback?: React.ReactNode;
+}
+
+export function HydrationSafe({ children, fallback }: HydrationSafeProps) {
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  if (!isHydrated) {
+    return fallback || <Skeleton height={200} />;
+  }
+
+  return <>{children}</>;
+}
+```
+
+### 2. Dynamic Imports for Performance
+
+```typescript
+// components/LazyComponent.tsx
+import dynamic from 'next/dynamic';
+import { Skeleton } from '@mantine/core';
+
+const HeavyComponent = dynamic(() => import('./HeavyComponent'), {
+  loading: () => <Skeleton height={400} />,
+  ssr: false,
+});
+
+export function LazyComponent() {
+  return <HeavyComponent />;
+}
+```
+
+### 3. Color Scheme Management
+
+```typescript
+// hooks/useColorScheme.ts
+'use client';
+import { useLocalStorage, useColorScheme } from '@mantine/hooks';
+
+export function useAppColorScheme() {
+  const [colorScheme, setColorScheme] = useLocalStorage({
+    key: 'color-scheme',
+    defaultValue: 'light' as 'light' | 'dark',
+  });
+
+  const toggleColorScheme = () => {
+    setColorScheme(colorScheme === 'light' ? 'dark' : 'light');
+  };
+
+  return {
+    colorScheme,
+    setColorScheme,
+    toggleColorScheme,
+  };
+}
+```
+
+This comprehensive guide covers all aspects of using Mantine UI with Next.js, from basic setup to advanced patterns and best practices.

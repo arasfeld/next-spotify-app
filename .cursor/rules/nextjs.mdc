@@ -1,0 +1,1346 @@
+# Next.js Cursor Rules
+
+## Project Structure and Organization
+
+### File and Folder Conventions
+
+**Top-level folders:**
+
+- `app/` - App Router (required for App Router)
+- `pages/` - Pages Router (alternative to App Router)
+- `public/` - Static assets to be served
+- `src/` - Optional application source folder
+
+**Top-level files:**
+
+- `next.config.js` - Configuration file for Next.js
+- `package.json` - Project dependencies and scripts
+- `middleware.ts` - Next.js request middleware
+- `.env*` - Environment variables
+- `tsconfig.json` - Configuration file for TypeScript
+- `jsconfig.json` - Configuration file for JavaScript
+
+**Routing files:**
+
+- `layout.js` - Layout components
+- `page.js` - Page components
+- `loading.js` - Loading UI
+- `not-found.js` - Not found UI
+- `error.js` - Error UI
+- `route.js` - API endpoints
+- `template.js` - Re-rendered layout
+- `default.js` - Parallel route fallback page
+
+### File Naming Conventions
+
+**Always use:**
+
+- `.tsx` for TypeScript React components
+- `.ts` for TypeScript files without JSX
+- `.jsx` for JavaScript React components
+- `.js` for JavaScript files without JSX
+
+**Special file conventions:**
+
+- `favicon.ico` - Favicon file
+- `icon.jpg` - App Icon file
+- `apple-icon.jpg` - Apple App Icon file
+- `opengraph-image.jpg` - Open Graph image file
+- `twitter-image.jpg` - Twitter image file
+- `robots.txt` - Robots file
+- `sitemap.xml` - Sitemap file
+
+### Route Organization
+
+**Dynamic routes:**
+
+- Use `[segment]` for single parameter
+- Use `[...segment]` for catch-all routes
+- Use `[[...segment]]` for optional catch-all routes
+
+**Route groups:**
+
+- Use `(group)` for organizational purposes without affecting URL
+- Use `_folder` for private folders (not routable)
+
+**Parallel and intercepted routes:**
+
+- Use `@folder` for named slots
+- Use `(.)folder` to intercept same level
+- Use `(..)folder` to intercept parent
+- Use `(...)folder` to intercept from root
+
+## Component Architecture
+
+### Server and Client Components
+
+**Use Server Components by default:**
+
+- For data fetching from databases or APIs
+- For using API keys and secrets
+- For reducing JavaScript bundle size
+- For improving First Contentful Paint (FCP)
+
+**Use Client Components when you need:**
+
+- State and event handlers (`onClick`, `onChange`)
+- Lifecycle logic (`useEffect`)
+- Browser-only APIs (`localStorage`, `window`)
+- Custom hooks
+
+**Client Component declaration:**
+
+```typescript
+'use client';
+
+import { useState } from 'react';
+
+export default function InteractiveComponent() {
+  const [state, setState] = useState();
+  // ...
+}
+```
+
+### Component Hierarchy
+
+**Render order:**
+
+1. `layout.js`
+2. `template.js`
+3. `error.js` (React error boundary)
+4. `loading.js` (React suspense boundary)
+5. `not-found.js` (React error boundary)
+6. `page.js` or nested `layout.js`
+
+### Layout and Page Structure
+
+**Root layout requirements:**
+
+```typescript
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**Page structure:**
+
+```typescript
+export default function Page() {
+  return <h1>Hello, Next.js!</h1>;
+}
+```
+
+## Data Fetching Patterns
+
+### Server Components
+
+**Using fetch API:**
+
+```typescript
+export default async function Page() {
+  const data = await fetch('https://api.example.com/data');
+  const posts = await data.json();
+
+  return (
+    <ul>
+      {posts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+**Using ORM/database:**
+
+```typescript
+import { db, posts } from '@/lib/db';
+
+export default async function Page() {
+  const allPosts = await db.select().from(posts);
+
+  return (
+    <ul>
+      {allPosts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Client Components
+
+**Using the `use` hook for streaming:**
+
+```typescript
+'use client';
+import { use } from 'react';
+
+export default function Posts({
+  posts,
+}: {
+  posts: Promise<{ id: string; title: string }[]>;
+}) {
+  const allPosts = use(posts);
+
+  return (
+    <ul>
+      {allPosts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Caching and Revalidation
+
+**Request memoization:**
+
+- Automatically deduplicates `fetch` requests in a single render pass
+- Use `cache: 'force-cache'` for data cache
+- Use `next: { revalidate: 3600 }` for time-based revalidation
+
+**Using unstable_cache:**
+
+```typescript
+import { unstable_cache } from 'next/cache';
+
+const getCachedUser = unstable_cache(
+  async () => {
+    return getUserById(userId);
+  },
+  [userId],
+  {
+    tags: ['user'],
+    revalidate: 3600,
+  }
+);
+```
+
+**Revalidation:**
+
+```typescript
+import { revalidatePath, revalidateTag } from 'next/cache';
+
+export async function updateUser(id: string) {
+  // Mutate data
+  revalidatePath('/profile');
+  revalidateTag('user');
+}
+```
+
+## Server Actions and Forms
+
+### Creating Server Actions
+
+**File-level directive:**
+
+```typescript
+'use server';
+
+export async function createPost(formData: FormData) {
+  const title = formData.get('title');
+  const content = formData.get('content');
+
+  // Update data
+  // Revalidate cache
+}
+```
+
+**Function-level directive:**
+
+```typescript
+export default function Page() {
+  async function createPost(formData: FormData) {
+    'use server';
+    // ...
+  }
+
+  return <></>;
+}
+```
+
+### Form Handling
+
+**Basic form:**
+
+```typescript
+import { createPost } from '@/app/actions';
+
+export function Form() {
+  return (
+    <form action={createPost}>
+      <input type="text" name="title" />
+      <input type="text" name="content" />
+      <button type="submit">Create</button>
+    </form>
+  );
+}
+```
+
+**With error handling:**
+
+```typescript
+'use client';
+import { useActionState } from 'react';
+import { createPost } from '@/app/actions';
+
+const initialState = { message: '' };
+
+export function Form() {
+  const [state, formAction, pending] = useActionState(createPost, initialState);
+
+  return (
+    <form action={formAction}>
+      <input type="text" name="title" required />
+      <textarea name="content" required />
+      {state?.message && <p aria-live="polite">{state.message}</p>}
+      <button disabled={pending}>Create Post</button>
+    </form>
+  );
+}
+```
+
+## Error Handling
+
+### Expected Errors
+
+**Server Functions with useActionState:**
+
+```typescript
+'use server';
+
+export async function createPost(prevState: any, formData: FormData) {
+  const res = await fetch('https://api.example.com/posts', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    return { message: 'Failed to create post' };
+  }
+
+  return { message: 'Post created successfully' };
+}
+```
+
+**Server Components:**
+
+```typescript
+export default async function Page() {
+  const res = await fetch('https://api.example.com/data');
+
+  if (!res.ok) {
+    return <div>There was an error loading the data.</div>;
+  }
+
+  const data = await res.json();
+  return <div>{/* render data */}</div>;
+}
+```
+
+### Uncaught Exceptions
+
+**Error boundaries:**
+
+```typescript
+'use client';
+import { useEffect } from 'react';
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+
+  return (
+    <div>
+      <h2>Something went wrong!</h2>
+      <button onClick={() => reset()}>Try again</button>
+    </div>
+  );
+}
+```
+
+**Not found handling:**
+
+```typescript
+import { notFound } from 'next/navigation';
+
+export default async function Page({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+
+  if (!post) {
+    notFound();
+  }
+
+  return <div>{post.title}</div>;
+}
+```
+
+## Styling Guidelines
+
+### CSS Organization
+
+**Import order:**
+
+1. Global styles and Tailwind in root layout
+2. CSS Modules for component-specific styles
+3. External stylesheets as needed
+
+**Global CSS:**
+
+```css
+/* app/globals.css */
+@import 'tailwindcss';
+
+body {
+  padding: 20px 20px 60px;
+  max-width: 680px;
+  margin: 0 auto;
+}
+```
+
+**CSS Modules:**
+
+```css
+/* app/blog/blog.module.css */
+.blog {
+  padding: 24px;
+}
+```
+
+```typescript
+import styles from './blog.module.css';
+
+export default function Page() {
+  return <main className={styles.blog}></main>;
+}
+```
+
+### Tailwind CSS Setup
+
+**PostCSS configuration:**
+
+```javascript
+// postcss.config.mjs
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+  },
+};
+```
+
+**Global CSS import:**
+
+```css
+/* app/globals.css */
+@import 'tailwindcss';
+```
+
+## Image and Font Optimization
+
+### Image Component
+
+**Local images:**
+
+```typescript
+import Image from 'next/image';
+
+export default function Page() {
+  return (
+    <Image
+      src="/profile.png"
+      alt="Picture of the author"
+      width={500}
+      height={500}
+    />
+  );
+}
+```
+
+**Remote images:**
+
+```typescript
+import Image from 'next/image';
+
+export default function Page() {
+  return (
+    <Image
+      src="https://s3.amazonaws.com/my-bucket/profile.png"
+      alt="Picture of the author"
+      width={500}
+      height={500}
+    />
+  );
+}
+```
+
+**Next.js config for remote images:**
+
+```typescript
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const config: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 's3.amazonaws.com',
+        port: '',
+        pathname: '/my-bucket/**',
+      },
+    ],
+  },
+};
+
+export default config;
+```
+
+### Font Optimization
+
+**Google Fonts:**
+
+```typescript
+import { Geist } from 'next/font/google';
+
+const geist = Geist({
+  subsets: ['latin'],
+});
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className={geist.className}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+**Local Fonts:**
+
+```typescript
+import localFont from 'next/font/local';
+
+const myFont = localFont({
+  src: './my-font.woff2',
+});
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className={myFont.className}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+## Metadata and SEO
+
+### Static Metadata
+
+```typescript
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'My Blog',
+  description: 'Welcome to my blog',
+  openGraph: {
+    title: 'My Blog',
+    description: 'Welcome to my blog',
+  },
+};
+
+export default function Page() {
+  return <div>Blog content</div>;
+}
+```
+
+### Generated Metadata
+
+```typescript
+import type { Metadata, ResolvingMetadata } from 'next';
+
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+};
+
+export async function generateMetadata(
+  { params, searchParams }: Props,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const slug = (await params).slug;
+  const post = await fetch(`https://api.example.com/blog/${slug}`).then((res) =>
+    res.json()
+  );
+
+  return {
+    title: post.title,
+    description: post.description,
+  };
+}
+
+export default function Page({ params, searchParams }: Props) {
+  return <div>Blog post content</div>;
+}
+```
+
+### Generated Open Graph Images
+
+```typescript
+import { ImageResponse } from 'next/og';
+import { getPost } from '@/app/lib/data';
+
+export const size = {
+  width: 1200,
+  height: 630,
+};
+
+export const contentType = 'image/png';
+
+export default async function Image({ params }: { params: { slug: string } }) {
+  const post = await getPost(params.slug);
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          fontSize: 128,
+          background: 'white',
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {post.title}
+      </div>
+    )
+  );
+}
+```
+
+## Route Handlers and Middleware
+
+### Route Handlers
+
+```typescript
+// app/api/route.ts
+export async function GET(request: Request) {
+  return Response.json({ message: 'Hello World' });
+}
+
+export async function POST(request: Request) {
+  const data = await request.json();
+  return Response.json({ data });
+}
+```
+
+**With caching:**
+
+```typescript
+export const dynamic = 'force-static';
+
+export async function GET() {
+  const res = await fetch('https://api.example.com/data', {
+    headers: {
+      'Content-Type': 'application/json',
+      'API-Key': process.env.DATA_API_KEY,
+    },
+  });
+  const data = await res.json();
+
+  return Response.json({ data });
+}
+```
+
+### Middleware
+
+```typescript
+// middleware.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+
+export function middleware(request: NextRequest) {
+  // Add custom logic here
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: '/about/:path*',
+};
+```
+
+## Performance Optimization
+
+### Streaming
+
+**With loading.js:**
+
+```typescript
+// app/blog/loading.tsx
+export default function Loading() {
+  return <div>Loading...</div>;
+}
+```
+
+**With Suspense:**
+
+```typescript
+import { Suspense } from 'react';
+import BlogList from '@/components/BlogList';
+import BlogListSkeleton from '@/components/BlogListSkeleton';
+
+export default function BlogPage() {
+  return (
+    <div>
+      <header>
+        <h1>Welcome to the Blog</h1>
+      </header>
+      <main>
+        <Suspense fallback={<BlogListSkeleton />}>
+          <BlogList />
+        </Suspense>
+      </main>
+    </div>
+  );
+}
+```
+
+### Parallel Data Fetching
+
+```typescript
+export default async function Page({
+  params,
+}: {
+  params: { username: string };
+}) {
+  const { username } = await params;
+
+  // Initiate requests in parallel
+  const artistData = getArtist(username);
+  const albumsData = getAlbums(username);
+
+  const [artist, albums] = await Promise.all([artistData, albumsData]);
+
+  return (
+    <>
+      <h1>{artist.name}</h1>
+      <Albums list={albums} />
+    </>
+  );
+}
+```
+
+## TypeScript Best Practices
+
+### Type Safety
+
+**Route parameters:**
+
+```typescript
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  // ...
+}
+```
+
+**Search parameters:**
+
+```typescript
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const filters = (await searchParams).filters;
+  // ...
+}
+```
+
+**Route context helper:**
+
+```typescript
+import type { NextRequest } from 'next/server';
+
+export async function GET(_req: NextRequest, ctx: RouteContext<'/users/[id]'>) {
+  const { id } = await ctx.params;
+  return Response.json({ id });
+}
+```
+
+### Import Organization
+
+**Package imports first (alphabetically):**
+
+```typescript
+import { createRoot } from 'react-dom/client';
+import { Provider } from 'react-redux';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+
+import { Button, Text, Title } from '@mantine/core';
+import { IconHome, IconSettings } from '@tabler/icons-react';
+
+import { format } from 'date-fns';
+import { debounce } from 'lodash';
+```
+
+**Local imports second (alphabetically):**
+
+```typescript
+import { Layout } from '../components/Layout';
+import { ThemeProvider } from '../components/ThemeProvider';
+
+import { Home } from '../pages/Home';
+import { Settings } from '../pages/Settings';
+
+import { useAuth } from '../features/auth/auth-hooks';
+import { spotifyApi } from '../features/spotify/spotify-api';
+
+import { store } from '../store';
+import type { RootState } from '../store';
+import type { User } from '../types';
+```
+
+## Environment and Configuration
+
+### Environment Variables
+
+**Server-side only:**
+
+```bash
+# .env.local
+DATABASE_URL="postgresql://..."
+API_KEY="secret-key"
+```
+
+**Client-side accessible:**
+
+```bash
+# .env.local
+NEXT_PUBLIC_API_URL="https://api.example.com"
+```
+
+### Next.js Configuration
+
+```typescript
+// next.config.ts
+import type { NextConfig } from 'next';
+
+const config: NextConfig = {
+  experimental: {
+    // Enable experimental features
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'example.com',
+      },
+    ],
+  },
+  // Other configuration options
+};
+
+export default config;
+```
+
+## Testing and Development
+
+### Development Scripts
+
+**Package.json scripts:**
+
+```json
+{
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix"
+  }
+}
+```
+
+### ESLint Configuration
+
+```javascript
+// eslint.config.mjs
+export default {
+  extends: ['next/core-web-vitals'],
+  rules: {
+    // Custom rules
+  },
+};
+```
+
+## Deployment Considerations
+
+### Build Optimization
+
+**Static generation:**
+
+```typescript
+export async function generateStaticParams() {
+  const posts = await fetch('https://api.example.com/posts').then((res) =>
+    res.json()
+  );
+
+  return posts.map((post) => ({
+    slug: post.slug,
+  }));
+}
+```
+
+**Dynamic rendering:**
+
+```typescript
+export const dynamic = 'force-dynamic';
+
+export default async function Page() {
+  const data = await fetch('https://api.example.com/data', {
+    cache: 'no-store',
+  });
+  // ...
+}
+```
+
+### Environment-Specific Configuration
+
+**Development:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  ...(process.env.NODE_ENV === 'development' &&
+    {
+      // Development-specific config
+    }),
+};
+```
+
+**Production:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  ...(process.env.NODE_ENV === 'production' &&
+    {
+      // Production-specific config
+    }),
+};
+```
+
+## Code Quality Standards
+
+### Naming Conventions
+
+**Files and folders:**
+
+- Use kebab-case for file and folder names
+- Use PascalCase for component files
+- Use camelCase for utility files
+
+**Components:**
+
+- Use PascalCase for component names
+- Use descriptive names that indicate purpose
+
+**Functions and variables:**
+
+- Use camelCase for functions and variables
+- Use descriptive names that explain purpose
+- Use verbs for functions, nouns for variables
+
+### Code Organization
+
+**Component structure:**
+
+1. Imports (external, then internal)
+2. Type definitions
+3. Constants
+4. Component definition
+5. Exports
+
+**File organization:**
+
+- One component per file
+- Co-locate related files
+- Use index files for clean imports
+
+### Error Handling
+
+**Always handle errors gracefully:**
+
+- Use try-catch blocks for async operations
+- Provide meaningful error messages
+- Log errors for debugging
+- Show user-friendly fallbacks
+
+### Performance
+
+**Optimize for performance:**
+
+- Use Server Components by default
+- Implement proper caching strategies
+- Optimize images and fonts
+- Use streaming for better UX
+- Minimize client-side JavaScript
+
+### Security
+
+**Follow security best practices:**
+
+- Never expose sensitive data to the client
+- Use environment variables for secrets
+- Validate all user inputs
+- Implement proper authentication
+- Use HTTPS in production
+
+## Documentation Standards
+
+### Code Comments
+
+**Document complex logic:**
+
+```typescript
+/**
+ * Fetches user data and caches it for 1 hour
+ * @param userId - The unique identifier for the user
+ * @returns Promise<User> - The user data
+ */
+export async function getUser(userId: string): Promise<User> {
+  // Implementation
+}
+```
+
+**Explain business logic:**
+
+```typescript
+// Calculate shipping cost based on weight and distance
+const shippingCost = calculateShipping(weight, distance);
+```
+
+### README Requirements
+
+**Include in README:**
+
+- Project description
+- Installation instructions
+- Development setup
+- Build and deployment instructions
+- Environment variables
+- API documentation
+- Contributing guidelines
+
+## Version Control
+
+### Git Workflow
+
+**Branch naming:**
+
+- `feature/feature-name` for new features
+- `bugfix/bug-description` for bug fixes
+- `hotfix/urgent-fix` for critical fixes
+
+**Commit messages:**
+
+- Use conventional commits format
+- Be descriptive and concise
+- Reference issues when applicable
+
+**File organization:**
+
+- Keep related changes together
+- Use meaningful commit messages
+- Review code before merging
+
+## Accessibility
+
+### Standards Compliance
+
+**Follow WCAG guidelines:**
+
+- Provide alt text for images
+- Use semantic HTML elements
+- Ensure keyboard navigation
+- Maintain color contrast ratios
+- Provide focus indicators
+
+**ARIA attributes:**
+
+```typescript
+<button aria-label="Close modal" onClick={handleClose}>
+  ×
+</button>
+```
+
+## Internationalization
+
+### i18n Setup
+
+**Configure for multiple languages:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  i18n: {
+    locales: ['en', 'fr', 'es'],
+    defaultLocale: 'en',
+  },
+};
+```
+
+**Use translation functions:**
+
+```typescript
+import { useTranslations } from 'next-intl';
+
+export default function Page() {
+  const t = useTranslations('common');
+
+  return <h1>{t('welcome')}</h1>;
+}
+```
+
+## Monitoring and Analytics
+
+### Error Tracking
+
+**Implement error boundaries:**
+
+```typescript
+'use client';
+import { useEffect } from 'react';
+
+export default function Error({ error }: { error: Error }) {
+  useEffect(() => {
+    // Send error to monitoring service
+    console.error('Error:', error);
+  }, [error]);
+
+  return <div>Something went wrong</div>;
+}
+```
+
+### Performance Monitoring
+
+**Track Core Web Vitals:**
+
+- Largest Contentful Paint (LCP)
+- First Input Delay (FID)
+- Cumulative Layout Shift (CLS)
+
+**Use Next.js Analytics:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  analyticsId: process.env.NEXT_PUBLIC_ANALYTICS_ID,
+};
+```
+
+## Testing Strategy
+
+### Unit Testing
+
+**Test components:**
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import Page from './page';
+
+describe('Page', () => {
+  it('renders correctly', () => {
+    render(<Page />);
+    expect(screen.getByText('Hello, Next.js!')).toBeInTheDocument();
+  });
+});
+```
+
+### Integration Testing
+
+**Test API routes:**
+
+```typescript
+import { createMocks } from 'node-mocks-http';
+import handler from './api/route';
+
+describe('/api/route', () => {
+  it('returns 200', async () => {
+    const { req, res } = createMocks({
+      method: 'GET',
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(200);
+  });
+});
+```
+
+## Security Headers
+
+### Content Security Policy
+
+**Configure CSP:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline';",
+          },
+        ],
+      },
+    ];
+  },
+};
+```
+
+## Performance Budgets
+
+### Bundle Size Limits
+
+**Set performance budgets:**
+
+```typescript
+// next.config.ts
+const config: NextConfig = {
+  experimental: {
+    bundlePagesExternals: true,
+  },
+};
+```
+
+**Monitor bundle size:**
+
+- Use `@next/bundle-analyzer`
+- Set size limits in CI/CD
+- Optimize imports and dependencies
+
+## Code Review Guidelines
+
+### Review Checklist
+
+**Before submitting PR:**
+
+- [ ] Code follows project conventions
+- [ ] Tests pass
+- [ ] No console errors
+- [ ] Accessibility requirements met
+- [ ] Performance impact considered
+- [ ] Security implications reviewed
+- [ ] Documentation updated
+
+**Review focus areas:**
+
+- Code quality and readability
+- Performance implications
+- Security considerations
+- Accessibility compliance
+- Test coverage
+- Documentation completeness
+
+## Continuous Integration
+
+### CI/CD Pipeline
+
+**Required checks:**
+
+- Linting (ESLint)
+- Type checking (TypeScript)
+- Unit tests
+- Integration tests
+- Build verification
+- Security scanning
+
+**Deployment stages:**
+
+- Development
+- Staging
+- Production
+
+## Maintenance
+
+### Dependency Management
+
+**Regular updates:**
+
+- Update Next.js to latest version
+- Update React and related packages
+- Update development dependencies
+- Review and remove unused dependencies
+
+**Security updates:**
+
+- Monitor security advisories
+- Update vulnerable dependencies
+- Test thoroughly after updates
+
+### Code Maintenance
+
+**Regular tasks:**
+
+- Remove unused code
+- Update deprecated APIs
+- Optimize performance
+- Improve accessibility
+- Update documentation
+
+## Best Practices Summary
+
+1. **Use Server Components by default** - Only use Client Components when necessary
+2. **Implement proper error handling** - Use error boundaries and meaningful error messages
+3. **Optimize for performance** - Use caching, streaming, and proper image optimization
+4. **Follow accessibility guidelines** - Ensure your app is usable by everyone
+5. **Write maintainable code** - Use clear naming, proper organization, and documentation
+6. **Test thoroughly** - Implement unit, integration, and end-to-end tests
+7. **Monitor and measure** - Track performance, errors, and user experience
+8. **Stay updated** - Keep dependencies current and follow Next.js best practices
+9. **Security first** - Never expose sensitive data and validate all inputs
+10. **Document everything** - Maintain clear documentation for future developers
+
+---
+
+description: Comprehensive Next.js development guidelines and best practices
+globs: ["**/*.tsx", "**/*.ts", "**/*.jsx", "**/*.js", "**/*.css", "**/*.scss", "**/next.config.*", "**/package.json", "**/tsconfig.json"]
+alwaysApply: true
