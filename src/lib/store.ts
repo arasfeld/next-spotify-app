@@ -1,16 +1,6 @@
 import type { Action, ThunkAction } from '@reduxjs/toolkit';
 import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import { setupListeners } from '@reduxjs/toolkit/query';
-import {
-  FLUSH,
-  PAUSE,
-  PERSIST,
-  PURGE,
-  REGISTER,
-  REHYDRATE,
-  persistReducer,
-} from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
 
 import { authSlice } from './features/auth/auth-slice';
 import { spotifyApi } from './features/spotify/spotify-api';
@@ -22,23 +12,12 @@ const reducer = combineReducers({
   theme: themeReducer,
 });
 
-const persistConfig = {
-  key: 'root',
-  storage,
-  whitelist: ['auth', 'theme'],
-};
-
-const persistedReducer = persistReducer(persistConfig, reducer);
-
 // Create a makeStore function that returns a new store for each request
 export const makeStore = () => {
   const store = configureStore({
-    reducer: persistedReducer,
+    reducer,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
-        serializableCheck: {
-          ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
-        },
         // Disable immutability check for RTK Query compatibility
         immutableCheck: false,
       }).concat(spotifyApi.middleware),

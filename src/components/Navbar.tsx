@@ -13,7 +13,6 @@ import {
   LayoutGrid,
   Library,
   ListMusic,
-  MicVocal,
   Music2,
   PlayCircle,
   Search,
@@ -28,6 +27,7 @@ import type { Playlist } from '@/lib/types';
 export function Navbar() {
   const router = useRouter();
   const auth = useAppSelector((state) => state.auth);
+
   const {
     data: playlistsResponse,
     isLoading: playlistsLoading,
@@ -78,7 +78,7 @@ export function Navbar() {
         />
         <NavLink
           label="Artists"
-          leftSection={<MicVocal />}
+          leftSection={<Library />}
           onClick={() => router.push('/artists')}
         />
         <NavLink

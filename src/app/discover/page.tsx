@@ -10,6 +10,7 @@ import {
   Grid,
   Group,
   Image,
+  ScrollArea,
   Skeleton,
   Stack,
   Text,
@@ -281,74 +282,79 @@ export default function DiscoverPage() {
             </Text>
           </Box>
 
-          {/* Currently Playing */}
-          {currentlyPlaying?.item && (
-            <Card withBorder p="md">
-              <Stack gap="md">
-                <Title order={3}>Currently Playing</Title>
-                <Group gap="md">
-                  <Image
-                    src={currentlyPlaying.item.album?.images?.[0]?.url}
-                    height={80}
-                    width={80}
-                    fit="cover"
-                    radius="sm"
-                    fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
-                    alt={`Album cover for ${currentlyPlaying.item.name}`}
-                  />
-                  <Stack gap={4}>
-                    <Text fw={500}>{currentlyPlaying.item.name}</Text>
-                    <Text size="sm" c="dimmed">
-                      {currentlyPlaying.item.artists
-                        ?.map((artist: { name: string }) => artist.name)
-                        .join(', ')}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {currentlyPlaying.item.album?.name}
-                    </Text>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <Stack gap="xl">
+              {/* Currently Playing */}
+              {currentlyPlaying?.item && (
+                <Card withBorder p="md">
+                  <Stack gap="md">
+                    <Title order={3}>Currently Playing</Title>
+                    <Group gap="md">
+                      <Image
+                        src={currentlyPlaying.item.album?.images?.[0]?.url}
+                        height={80}
+                        width={80}
+                        fit="cover"
+                        radius="sm"
+                        fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                        alt={`Album cover for ${currentlyPlaying.item.name}`}
+                      />
+                      <Stack gap={4}>
+                        <Text fw={500}>{currentlyPlaying.item.name}</Text>
+                        <Text size="sm" c="dimmed">
+                          {currentlyPlaying.item.artists
+                            ?.map((artist: { name: string }) => artist.name)
+                            .join(', ')}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {currentlyPlaying.item.album?.name}
+                        </Text>
+                      </Stack>
+                    </Group>
                   </Stack>
-                </Group>
-              </Stack>
-            </Card>
-          )}
+                </Card>
+              )}
 
-          {/* Top Tracks */}
-          {renderTrackGrid(
-            topTracks?.items || [],
-            'Your Top Tracks',
-            topTracksLoading
-          )}
+              {/* Top Tracks */}
+              {renderTrackGrid(
+                topTracks?.items || [],
+                'Your Top Tracks',
+                topTracksLoading
+              )}
 
-          {/* Top Artists */}
-          {renderArtistGrid(
-            topArtists?.items || [],
-            'Your Top Artists',
-            topArtistsLoading
-          )}
+              {/* Top Artists */}
+              {renderArtistGrid(
+                topArtists?.items || [],
+                'Your Top Artists',
+                topArtistsLoading
+              )}
 
-          {/* Recently Played */}
-          {renderTrackGrid(
-            recentlyPlayed?.items?.map(
-              (item: { track: Track }) => item.track
-            ) || [],
-            'Recently Played',
-            recentlyPlayedLoading
-          )}
+              {/* Recently Played */}
+              {renderTrackGrid(
+                recentlyPlayed?.items?.map(
+                  (item: { track: Track }) => item.track
+                ) || [],
+                'Recently Played',
+                recentlyPlayedLoading
+              )}
 
-          {/* New Releases */}
-          {renderAlbumGrid(
-            newReleases?.items || [],
-            'New Releases',
-            newReleasesLoading
-          )}
+              {/* New Releases */}
+              {renderAlbumGrid(
+                newReleases?.items || [],
+                'New Releases',
+                newReleasesLoading
+              )}
 
-          {/* Saved Albums */}
-          {renderAlbumGrid(
-            savedAlbums?.items?.map((item: { album: Album }) => item.album) ||
-              [],
-            'Your Saved Albums',
-            savedAlbumsLoading
-          )}
+              {/* Saved Albums */}
+              {renderAlbumGrid(
+                savedAlbums?.items?.map(
+                  (item: { album: Album }) => item.album
+                ) || [],
+                'Your Saved Albums',
+                savedAlbumsLoading
+              )}
+            </Stack>
+          </ScrollArea>
         </Stack>
       </Box>
     </Layout>

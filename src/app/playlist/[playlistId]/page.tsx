@@ -8,7 +8,9 @@ import {
   Container,
   Group,
   Image,
+  Loader,
   Paper,
+  ScrollArea,
   Skeleton,
   Stack,
   Table,
@@ -18,104 +20,59 @@ import {
 } from '@mantine/core';
 import { Clock, Play } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import { useAppSelector } from '@/lib/hooks';
 
 import { Layout } from '@/components/Layout';
-import {
-  useGetPlaylistQuery,
-  useGetPlaylistTracksQuery,
-} from '@/lib/features/spotify/spotify-api';
+import { spotifyApi } from '@/lib/features/spotify/spotify-api';
 import type { Track } from '@/lib/types';
 
 export default function PlaylistPage() {
   const { playlistId } = useParams<{ playlistId: string }>();
   const auth = useAppSelector((state) => state.auth);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [allTracks, setAllTracks] = useState<Track[]>([]);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isSwitchingPlaylist, setIsSwitchingPlaylist] = useState(false);
-  const tracksPerPage = 100;
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [, setScrollPosition] = useState({ x: 0, y: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
   // Fetch playlist metadata
   const {
     data: playlistData,
     isLoading: playlistLoading,
     error: playlistError,
-  } = useGetPlaylistQuery(playlistId || '', {
+  } = spotifyApi.useGetPlaylistQuery(playlistId || '', {
     skip: !auth.authenticated || !auth.accessToken || !playlistId,
   });
 
-  // Fetch playlist tracks with pagination
+  // Fetch playlist tracks with infinite query
   const {
     data: tracksData,
     isLoading: tracksLoading,
     error: tracksError,
-  } = useGetPlaylistTracksQuery(
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = spotifyApi.endpoints.getPlaylistTracksInfinite.useInfiniteQuery(
     {
       playlistId: playlistId || '',
-      limit: tracksPerPage,
-      offset: currentPage * tracksPerPage,
+      limit: 100,
     },
     {
       skip: !auth.authenticated || !auth.accessToken || !playlistId,
     }
   );
 
-  // Reset tracks and pagination when playlist ID changes
-  useEffect(() => {
-    setIsSwitchingPlaylist(true);
-    setAllTracks([]);
-    setCurrentPage(0);
-    setIsLoadingMore(false);
-  }, [playlistId]);
+  // Flatten all pages into a single array
+  const allTracks =
+    tracksData?.pages.flatMap((page: { items: Array<{ track: Track }> }) =>
+      page.items.map((item: { track: Track }) => item.track).filter(Boolean)
+    ) || [];
 
-  // Update all tracks when new data is loaded
-  useEffect(() => {
-    if (tracksData?.items) {
-      const newTracks = tracksData.items
-        .map((item: { track: Track }) => item.track)
-        .filter(Boolean);
-
-      if (currentPage === 0) {
-        // First page, replace all tracks
-        setAllTracks(newTracks);
-      } else {
-        // Subsequent pages, append tracks
-        setAllTracks((prev) => {
-          // Check for duplicates by track ID
-          const existingIds = new Set(prev.map((track: Track) => track.id));
-          const uniqueNewTracks = newTracks.filter(
-            (track: Track) => !existingIds.has(track.id)
-          );
-
-          return [...prev, ...uniqueNewTracks];
-        });
-      }
-
-      // Reset loading state
-      setIsLoadingMore(false);
-      setIsSwitchingPlaylist(false);
-    }
-  }, [tracksData, currentPage, tracksPerPage]);
-
-  // Show loading skeleton when switching playlists or when data is loading
-  const isLoading = playlistLoading || tracksLoading || isSwitchingPlaylist;
+  // Show loading skeleton when data is loading
+  const isLoading = playlistLoading || tracksLoading;
   const error = playlistError || tracksError;
   const playlist = playlistData;
-
-  // Check if we have more tracks to load
-  const hasMoreTracks =
-    playlist &&
-    allTracks.length < playlist.tracks.total &&
-    (tracksData?.items?.length === tracksPerPage || currentPage === 0);
 
   // Format time in MM:SS
   const formatTime = (ms: number) => {
@@ -132,59 +89,129 @@ export default function PlaylistPage() {
     // TODO: Implement play entire playlist functionality
   };
 
-  const handleLoadMore = useCallback(() => {
-    if (
-      !isLoadingMore &&
-      hasMoreTracks &&
-      allTracks.length < (playlist?.tracks?.total || 0)
-    ) {
-      setIsLoadingMore(true);
-      setCurrentPage((prev) => prev + 1);
-    }
-  }, [isLoadingMore, hasMoreTracks, allTracks.length, playlist?.tracks?.total]);
+  // Memoize the scroll handler to prevent unnecessary re-renders
+  const handleScrollPositionChange = useCallback(
+    (position: { x: number; y: number }) => {
+      setScrollPosition(position);
 
-  // Set up scroll listener when component mounts and ref is available
-  useLayoutEffect(() => {
-    if (!tableContainerRef.current) return;
-
-    const handleScroll = () => {
-      if (!tableContainerRef.current || isLoadingMore) {
-        return;
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
       }
 
-      // Don't load more if we already have all tracks or if we've reached the end
-      if (
-        allTracks.length >= (playlist?.tracks?.total || 0) ||
-        !hasMoreTracks
-      ) {
-        return;
-      }
+      // Debounce scroll events to improve performance
+      scrollTimeoutRef.current = setTimeout(() => {
+        if (!viewportRef.current || isFetchingNextPage || !hasNextPage) {
+          return;
+        }
 
-      const { scrollTop, scrollHeight, clientHeight } =
-        tableContainerRef.current;
+        const { scrollTop, scrollHeight, clientHeight } = viewportRef.current;
+        const threshold = 300; // Increased threshold for better UX
+        const isNearBottom =
+          scrollTop + clientHeight >= scrollHeight - threshold;
 
-      // Only trigger if we're near the bottom (within 200px)
-      const threshold = 200;
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - threshold;
+        if (isNearBottom) {
+          fetchNextPage();
+        }
+      }, 100); // 100ms debounce
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  );
 
-      if (isNearBottom) {
-        handleLoadMore();
-      }
-    };
-
-    const containerElement = tableContainerRef.current;
-    containerElement.addEventListener('scroll', handleScroll);
-
-    return () => {
-      containerElement.removeEventListener('scroll', handleScroll);
-    };
-  }, [
-    isLoadingMore,
-    handleLoadMore,
-    allTracks.length,
-    playlist?.tracks?.total,
-    hasMoreTracks,
-  ]);
+  // Memoize the table rows to prevent unnecessary re-renders
+  const tableRows = useMemo(() => {
+    return allTracks
+      .filter((track): track is Track => track !== null && track !== undefined)
+      .map((track: Track, index: number) => (
+        <Table.Tr key={`${track.id}-${index}`}>
+          <Table.Td>
+            <Text size="sm" c="dimmed">
+              {index + 1}
+            </Text>
+          </Table.Td>
+          <Table.Td>
+            <Group gap="sm">
+              <Box style={{ width: 50, height: 50, flexShrink: 0 }}>
+                <Image
+                  src={track.album?.images?.[0]?.url}
+                  alt={track.name || 'Track'}
+                  width="100%"
+                  height="100%"
+                  fit="cover"
+                  radius="sm"
+                  fallbackSrc="https://placehold.co/50x50/1db954/ffffff?text=🎵"
+                  loading="lazy"
+                />
+              </Box>
+              <Tooltip
+                label={track.name || 'Unknown Track'}
+                disabled={!track.name}
+              >
+                <Text
+                  size="sm"
+                  fw={500}
+                  lineClamp={1}
+                  style={{ maxWidth: 200 }}
+                >
+                  {track.name || 'Unknown Track'}
+                </Text>
+              </Tooltip>
+            </Group>
+          </Table.Td>
+          <Table.Td>
+            <Tooltip
+              label={
+                track.artists
+                  ?.map((artist: { name: string }) => artist.name)
+                  .join(', ') || 'Unknown Artist'
+              }
+              disabled={!track.artists?.length}
+            >
+              <Text
+                size="sm"
+                c="dimmed"
+                lineClamp={1}
+                style={{ maxWidth: 150 }}
+              >
+                {track.artists
+                  ?.map((artist: { name: string }) => artist.name)
+                  .join(', ') || 'Unknown Artist'}
+              </Text>
+            </Tooltip>
+          </Table.Td>
+          <Table.Td>
+            <Tooltip
+              label={track.album?.name || 'Unknown Album'}
+              disabled={!track.album?.name}
+            >
+              <Text
+                size="sm"
+                c="dimmed"
+                lineClamp={1}
+                style={{ maxWidth: 150 }}
+              >
+                {track.album?.name || 'Unknown Album'}
+              </Text>
+            </Tooltip>
+          </Table.Td>
+          <Table.Td>
+            <Text size="sm" c="dimmed" ta="center">
+              {formatTime(track.duration_ms || 0)}
+            </Text>
+          </Table.Td>
+          <Table.Td>
+            <ActionIcon
+              size="sm"
+              title="Play track"
+              variant="subtle"
+              onClick={handlePlayTrack}
+            >
+              <Play size={16} />
+            </ActionIcon>
+          </Table.Td>
+        </Table.Tr>
+      ));
+  }, [allTracks, formatTime, handlePlayTrack]);
 
   // Loading skeleton component
   const PlaylistSkeleton = () => (
@@ -215,7 +242,7 @@ export default function PlaylistPage() {
             flexDirection: 'column',
           }}
         >
-          <div style={{ flex: 1, overflow: 'auto' }}>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
             <Table stickyHeader>
               <Table.Thead>
                 <Table.Tr>
@@ -259,7 +286,7 @@ export default function PlaylistPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </div>
+          </ScrollArea>
         </Paper>
       </Stack>
     </Layout>
@@ -341,12 +368,14 @@ export default function PlaylistPage() {
             flexDirection: 'column',
           }}
         >
-          <div
-            ref={tableContainerRef}
-            style={{
-              flex: 1,
-              overflow: 'auto',
-            }}
+          <ScrollArea
+            h="100%"
+            type="auto"
+            offsetScrollbars
+            viewportRef={viewportRef}
+            onScrollPositionChange={handleScrollPositionChange}
+            scrollbarSize={8}
+            scrollHideDelay={500}
           >
             <Table highlightOnHover stickyHeader>
               <Table.Thead>
@@ -373,107 +402,30 @@ export default function PlaylistPage() {
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                  allTracks.map((track: Track, index: number) => (
-                    <Table.Tr key={`${track.id}-${index}`}>
-                      <Table.Td>
-                        <Text size="sm" c="dimmed">
-                          {index + 1}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Group gap="sm">
-                          <Box style={{ width: 50, height: 50, flexShrink: 0 }}>
-                            <Image
-                              src={track.album?.images?.[0]?.url}
-                              alt={track.name || 'Track'}
-                              width="100%"
-                              height="100%"
-                              fit="cover"
-                              radius="sm"
-                              fallbackSrc="https://placehold.co/50x50/1db954/ffffff?text=🎵"
-                            />
-                          </Box>
-                          <Tooltip
-                            label={track.name || 'Unknown Track'}
-                            disabled={!track.name}
-                          >
-                            <Text
-                              size="sm"
-                              fw={500}
-                              lineClamp={1}
-                              style={{ maxWidth: 200 }}
-                            >
-                              {track.name || 'Unknown Track'}
-                            </Text>
-                          </Tooltip>
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        <Tooltip
-                          label={
-                            track.artists
-                              ?.map((artist: { name: string }) => artist.name)
-                              .join(', ') || 'Unknown Artist'
-                          }
-                          disabled={!track.artists?.length}
-                        >
-                          <Text
-                            size="sm"
-                            c="dimmed"
-                            lineClamp={1}
-                            style={{ maxWidth: 150 }}
-                          >
-                            {track.artists
-                              ?.map((artist: { name: string }) => artist.name)
-                              .join(', ') || 'Unknown Artist'}
-                          </Text>
-                        </Tooltip>
-                      </Table.Td>
-                      <Table.Td>
-                        <Tooltip
-                          label={track.album?.name || 'Unknown Album'}
-                          disabled={!track.album?.name}
-                        >
-                          <Text
-                            size="sm"
-                            c="dimmed"
-                            lineClamp={1}
-                            style={{ maxWidth: 150 }}
-                          >
-                            {track.album?.name || 'Unknown Album'}
-                          </Text>
-                        </Tooltip>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" c="dimmed" ta="center">
-                          {formatTime(track.duration_ms || 0)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <ActionIcon
-                          size="sm"
-                          title="Play track"
-                          variant="subtle"
-                          onClick={handlePlayTrack}
-                        >
-                          <Play size={16} />
-                        </ActionIcon>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))
+                  tableRows
                 )}
               </Table.Tbody>
             </Table>
 
             {/* Loading indicator for infinite scroll */}
-            {isLoadingMore && (
-              <Group justify="center" p="md" style={{ flexShrink: 0 }}>
-                <Text size="sm" c="dimmed">
-                  Loading more tracks...
-                </Text>
-              </Group>
+            {isFetchingNextPage && (
+              <Box p="md" style={{ flexShrink: 0 }}>
+                <Group justify="center" gap="md">
+                  <Loader size="sm" />
+                  <Text size="sm" c="dimmed">
+                    Loading more tracks...
+                  </Text>
+                </Group>
+              </Box>
             )}
-          </div>
+
+            {/* End of list indicator */}
+            {!hasNextPage && allTracks.length > 0 && (
+              <Text ta="center" c="dimmed" py="md">
+                You&apos;ve reached the end of this playlist
+              </Text>
+            )}
+          </ScrollArea>
         </Paper>
       </Stack>
     </Layout>

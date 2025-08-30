@@ -23,15 +23,28 @@ export const refreshTokens = async (
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.warn('Token refresh failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+      });
       return null;
     }
 
     const data = await response.json();
+
+    if (!data.access_token) {
+      console.warn('Token refresh response missing access_token:', data);
+      return null;
+    }
+
     return {
       access_token: data.access_token,
-      expires_in: data.expires_in,
+      expires_in: data.expires_in || 3600, // Default to 1 hour if not provided
     };
-  } catch {
+  } catch (error) {
+    console.error('Token refresh network error:', error);
     return null;
   }
 };

@@ -6,6 +6,7 @@ import type {
 } from '@reduxjs/toolkit/query';
 
 import { refreshTokens } from '@/lib/auth-client';
+import { setAuthCookies } from '@/lib/cookies';
 import type { RootState } from '@/lib/store';
 import type {
   Album,
@@ -37,27 +38,44 @@ const baseQueryWithReauth: BaseQueryFn<
 > = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions);
 
-  if (result.error && result.error.status === 401) {
+  // Check if this is a retry attempt to prevent infinite loops
+  const isRetry = (extraOptions as { retry?: boolean })?.retry;
+
+  if (result.error && result.error.status === 401 && !isRetry) {
     // Token expired, try to refresh
     const state = api.getState() as RootState;
     const { refreshToken } = state.auth;
 
     if (refreshToken) {
-      const refreshResult = await refreshTokens(refreshToken);
-      if (refreshResult) {
-        // Update the store with new tokens
-        api.dispatch({
-          type: 'auth/updateAccessToken',
-          payload: refreshResult,
-        });
-        // Retry the original request
-        result = await baseQuery(args, api, extraOptions);
-      } else {
-        // Refresh failed, logout user
+      try {
+        const refreshResult = await refreshTokens(refreshToken);
+        if (refreshResult) {
+          // Update the store with new tokens
+          api.dispatch({
+            type: 'auth/updateAccessToken',
+            payload: refreshResult,
+          });
+
+          // Update cookies for middleware authentication
+          if (typeof window !== 'undefined') {
+            setAuthCookies(refreshResult.access_token, refreshToken);
+          }
+
+          // Retry the original request with new token
+          result = await baseQuery(args, api, { ...extraOptions, retry: true });
+        } else {
+          // Refresh failed, logout user
+          console.warn('Token refresh failed, logging out user');
+          api.dispatch({ type: 'auth/logout' });
+        }
+      } catch (error) {
+        // Refresh failed with exception, logout user
+        console.error('Token refresh error:', error);
         api.dispatch({ type: 'auth/logout' });
       }
     } else {
       // No refresh token, logout user
+      console.warn('No refresh token available, logging out user');
       api.dispatch({ type: 'auth/logout' });
     }
   }
@@ -214,6 +232,116 @@ export const spotifyApi = createApi({
         url: 'browse/new-releases',
         params: { limit, offset, country: 'US' },
       }),
+    }),
+
+    // Infinite Query Endpoints
+    getSavedArtistsInfinite: builder.infiniteQuery<
+      SpotifyApiResponse<Artist>,
+      { limit?: number },
+      number
+    >({
+      query: ({ queryArg, pageParam }) => ({
+        url: 'me/following',
+        params: {
+          limit: queryArg.limit || 50,
+          offset: pageParam,
+          type: 'artist',
+        },
+      }),
+      infiniteQueryOptions: {
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages, lastPageParam) => {
+          const total = lastPage.total || 0;
+          const nextOffset = lastPageParam + (lastPage.limit || 50);
+          return nextOffset < total ? nextOffset : undefined;
+        },
+        getPreviousPageParam: (firstPage, allPages, firstPageParam) => {
+          const prevOffset = firstPageParam - (firstPage.limit || 50);
+          return prevOffset >= 0 ? prevOffset : undefined;
+        },
+        maxPages: 10, // Keep up to 10 pages in cache
+      },
+    }),
+
+    getSavedAlbumsInfinite: builder.infiniteQuery<
+      SpotifyApiResponse<{ added_at: string; album: Album }>,
+      { limit?: number },
+      number
+    >({
+      query: ({ queryArg, pageParam }) => ({
+        url: 'me/albums',
+        params: {
+          limit: queryArg.limit || 50,
+          offset: pageParam,
+        },
+      }),
+      infiniteQueryOptions: {
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages, lastPageParam) => {
+          const total = lastPage.total || 0;
+          const nextOffset = lastPageParam + (lastPage.limit || 50);
+          return nextOffset < total ? nextOffset : undefined;
+        },
+        getPreviousPageParam: (firstPage, allPages, firstPageParam) => {
+          const prevOffset = firstPageParam - (firstPage.limit || 50);
+          return prevOffset >= 0 ? prevOffset : undefined;
+        },
+        maxPages: 10, // Keep up to 10 pages in cache
+      },
+    }),
+
+    getSavedTracksInfinite: builder.infiniteQuery<
+      SpotifyApiResponse<{ added_at: string; track: Track }>,
+      { limit?: number },
+      number
+    >({
+      query: ({ queryArg, pageParam }) => ({
+        url: 'me/tracks',
+        params: {
+          limit: queryArg.limit || 50,
+          offset: pageParam,
+        },
+      }),
+      infiniteQueryOptions: {
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages, lastPageParam) => {
+          const total = lastPage.total || 0;
+          const nextOffset = lastPageParam + (lastPage.limit || 50);
+          return nextOffset < total ? nextOffset : undefined;
+        },
+        getPreviousPageParam: (firstPage, allPages, firstPageParam) => {
+          const prevOffset = firstPageParam - (firstPage.limit || 50);
+          return prevOffset >= 0 ? prevOffset : undefined;
+        },
+        maxPages: 10, // Keep up to 10 pages in cache
+      },
+    }),
+
+    getPlaylistTracksInfinite: builder.infiniteQuery<
+      SpotifyApiResponse<{ added_at: string; track: Track }>,
+      { playlistId: string; limit?: number },
+      number
+    >({
+      query: ({ queryArg, pageParam }) => ({
+        url: `playlists/${queryArg.playlistId}/tracks`,
+        params: {
+          limit: queryArg.limit || 100,
+          offset: pageParam,
+        },
+      }),
+      infiniteQueryOptions: {
+        initialPageParam: 0,
+        getNextPageParam: (lastPage, allPages, lastPageParam) => {
+          const total = lastPage.total || 0;
+          const nextOffset = lastPageParam + (lastPage.limit || 100);
+          return nextOffset < total ? nextOffset : undefined;
+        },
+        getPreviousPageParam: (firstPage, allPages, firstPageParam) => {
+          const prevOffset = firstPageParam - (firstPage.limit || 100);
+          return prevOffset >= 0 ? prevOffset : undefined;
+        },
+        maxPages: 20, // Keep up to 20 pages in cache for playlists
+      },
     }),
   }),
 });

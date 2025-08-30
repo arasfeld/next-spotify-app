@@ -67,7 +67,9 @@ export default function LoginPage() {
     const codeChallenge = base64encode(hashed);
 
     // Store code verifier in localStorage for the callback
-    window.localStorage.setItem('code_verifier', codeVerifier);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('code_verifier', codeVerifier);
+    }
 
     const authUrl = `https://accounts.spotify.com/authorize?${new URLSearchParams(
       {
@@ -80,7 +82,9 @@ export default function LoginPage() {
       }
     )}`;
 
-    window.location.href = authUrl;
+    if (typeof window !== 'undefined') {
+      window.location.href = authUrl;
+    }
   };
 
   // Get primary color from theme
@@ -95,6 +99,7 @@ export default function LoginPage() {
   const isDark =
     themeMode === 'dark' ||
     (themeMode === 'system' &&
+      typeof window !== 'undefined' &&
       window.matchMedia('(prefers-color-scheme: dark)').matches);
   const backgroundStart = isDark ? theme.colors.dark[8] : theme.colors.gray[0];
   const backgroundEnd = isDark ? theme.colors.dark[6] : theme.colors.gray[2];

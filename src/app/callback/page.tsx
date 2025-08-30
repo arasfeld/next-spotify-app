@@ -2,12 +2,12 @@
 
 import { Button, Container, Loader, Stack, Text, Title } from '@mantine/core';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useAppDispatch } from '@/lib/hooks';
 
 import { setCredentials } from '@/lib/features/auth/auth-slice';
 
-export default function CallbackPage() {
+function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
@@ -107,10 +107,36 @@ export default function CallbackPage() {
         justify="center"
         style={{ minHeight: '50vh' }}
       >
+        <Title order={1}>Authenticating...</Title>
         <Loader size="lg" />
-        <Title order={3}>Authenticating...</Title>
-        <Text>Please wait while we complete your login.</Text>
+        <Text>Please wait while we complete your authentication.</Text>
       </Stack>
     </Container>
+  );
+}
+
+// Loading fallback component
+function CallbackLoading() {
+  return (
+    <Container size="sm" py="xl">
+      <Stack
+        gap="xl"
+        align="center"
+        justify="center"
+        style={{ minHeight: '50vh' }}
+      >
+        <Title order={1}>Loading...</Title>
+        <Loader size="lg" />
+        <Text>Please wait...</Text>
+      </Stack>
+    </Container>
+  );
+}
+
+export default function CallbackPage() {
+  return (
+    <Suspense fallback={<CallbackLoading />}>
+      <CallbackContent />
+    </Suspense>
   );
 }

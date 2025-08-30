@@ -6,38 +6,130 @@ import {
   Card,
   Group,
   Image,
-  Pagination,
+  Loader,
+  ScrollArea,
   Skeleton,
   Stack,
   Text,
   Title,
 } from '@mantine/core';
 import { Play } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useRef, useState, useMemo } from 'react';
 import { useAppSelector } from '@/lib/hooks';
 
 import { Layout } from '@/components/Layout';
-import { useGetSavedArtistsQuery } from '@/lib/features/spotify/spotify-api';
-
-const ITEMS_PER_PAGE = 50;
+import { spotifyApi } from '@/lib/features/spotify/spotify-api';
 
 export default function ArtistsPage() {
-  const [page, setPage] = useState(1);
   const auth = useAppSelector((state) => state.auth);
+  const [, setScrollPosition] = useState({ x: 0, y: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
   const {
-    data: savedArtistsResponse,
+    data: savedArtistsData,
     isLoading,
     error,
-  } = useGetSavedArtistsQuery(
-    {
-      limit: ITEMS_PER_PAGE,
-      offset: (page - 1) * ITEMS_PER_PAGE,
-    },
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = spotifyApi.endpoints.getSavedArtistsInfinite.useInfiniteQuery(
+    { limit: 50 },
     {
       skip: !auth.authenticated || !auth.accessToken,
     }
   );
+
+  // Flatten all pages into a single array
+  const allArtists =
+    savedArtistsData?.pages.flatMap(
+      (page: {
+        items: Array<{
+          id: string;
+          name: string;
+          images?: Array<{ url: string }>;
+        }>;
+      }) => page.items
+    ) || [];
+  const totalArtists = savedArtistsData?.pages[0]?.total || 0;
+
+  // Memoize the scroll handler to prevent unnecessary re-renders
+  const handleScrollPositionChange = useCallback(
+    (position: { x: number; y: number }) => {
+      setScrollPosition(position);
+
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Debounce scroll events to improve performance
+      scrollTimeoutRef.current = setTimeout(() => {
+        if (!viewportRef.current || isFetchingNextPage || !hasNextPage) {
+          return;
+        }
+
+        const { scrollTop, scrollHeight, clientHeight } = viewportRef.current;
+        const threshold = 300; // Increased threshold for better UX
+        const isNearBottom =
+          scrollTop + clientHeight >= scrollHeight - threshold;
+
+        if (isNearBottom) {
+          fetchNextPage();
+        }
+      }, 100); // 100ms debounce
+    },
+    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  );
+
+  // Memoize the artist cards to prevent unnecessary re-renders
+  const artistCards = useMemo(() => {
+    return allArtists
+      .filter(
+        (
+          artist
+        ): artist is {
+          id: string;
+          name: string;
+          images?: Array<{ url: string }>;
+        } => artist !== null && artist !== undefined
+      )
+      .map((artist) => (
+        <Card key={artist.id} p="md" withBorder>
+          <Group>
+            <Image
+              src={artist.images?.[0]?.url}
+              width={80}
+              height={80}
+              radius="50%"
+              fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎤"
+              alt={`Artist photo for ${artist.name}`}
+              loading="lazy"
+            />
+            <Box style={{ flex: 1 }}>
+              <Text size="lg" fw={500}>
+                {artist.name}
+              </Text>
+              <Text size="sm" c="dimmed">
+                Artist
+              </Text>
+            </Box>
+            <ActionIcon
+              variant="filled"
+              size="lg"
+              radius="xl"
+              style={{
+                backgroundColor: 'var(--mantine-color-green-6)',
+              }}
+            >
+              <Play size={16} fill="white" />
+            </ActionIcon>
+          </Group>
+        </Card>
+      ));
+  }, [allArtists]);
 
   if (isLoading) {
     return (
@@ -46,20 +138,22 @@ export default function ArtistsPage() {
           <Title order={1} mb="lg">
             Your Artists
           </Title>
-          <Stack gap="md">
-            {Array.from({ length: 10 }).map((_, index) => (
-              <Card key={index} p="md">
-                <Group>
-                  <Skeleton height={80} width={80} radius="50%" />
-                  <Box style={{ flex: 1 }}>
-                    <Skeleton height={24} width="50%" mb={8} />
-                    <Skeleton height={16} width="30%" />
-                  </Box>
-                  <Skeleton height={32} width={32} radius="50%" />
-                </Group>
-              </Card>
-            ))}
-          </Stack>
+          <ScrollArea h="100%" type="auto" offsetScrollbars>
+            <Stack gap="md">
+              {Array.from({ length: 10 }).map((_, index) => (
+                <Card key={index} p="md">
+                  <Group>
+                    <Skeleton height={80} width={80} radius="50%" />
+                    <Box style={{ flex: 1 }}>
+                      <Skeleton height={24} width="50%" mb={8} />
+                      <Skeleton height={16} width="30%" />
+                    </Box>
+                    <Skeleton height={32} width={32} radius="50%" />
+                  </Group>
+                </Card>
+              ))}
+            </Stack>
+          </ScrollArea>
         </Box>
       </Layout>
     );
@@ -80,11 +174,6 @@ export default function ArtistsPage() {
     );
   }
 
-  const savedArtists = savedArtistsResponse?.items || [];
-  const totalPages = Math.ceil(
-    (savedArtistsResponse?.total || 0) / ITEMS_PER_PAGE
-  );
-
   return (
     <Layout>
       <Box p="xl">
@@ -94,58 +183,45 @@ export default function ArtistsPage() {
               🎤 Your Artists
             </Title>
             <Text c="dimmed" size="sm">
-              {savedArtistsResponse?.total || 0} followed artists
+              {totalArtists} followed artists
             </Text>
           </Box>
 
-          {savedArtists.length === 0 ? (
+          {allArtists.length === 0 ? (
             <Text c="dimmed">No followed artists found.</Text>
           ) : (
-            <Stack gap="md">
-              {savedArtists.map((artist) => (
-                <Card key={artist.id} p="md" withBorder>
-                  <Group>
-                    <Image
-                      src={artist.images?.[0]?.url}
-                      width={80}
-                      height={80}
-                      radius="50%"
-                      fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎤"
-                      alt={`Artist photo for ${artist.name}`}
-                    />
-                    <Box style={{ flex: 1 }}>
-                      <Text size="lg" fw={500}>
-                        {artist.name}
-                      </Text>
-                      <Text size="sm" c="dimmed">
-                        Artist
-                      </Text>
-                    </Box>
-                    <ActionIcon
-                      variant="filled"
-                      size="lg"
-                      radius="xl"
-                      style={{
-                        backgroundColor: 'var(--mantine-color-green-6)',
-                      }}
-                    >
-                      <Play size={16} fill="white" />
-                    </ActionIcon>
-                  </Group>
-                </Card>
-              ))}
-            </Stack>
-          )}
+            <ScrollArea
+              h="100%"
+              type="auto"
+              offsetScrollbars
+              viewportRef={viewportRef}
+              onScrollPositionChange={handleScrollPositionChange}
+              scrollbarSize={8}
+              scrollHideDelay={500}
+            >
+              <Stack gap="md">
+                {artistCards}
 
-          {totalPages > 1 && (
-            <Group justify="center">
-              <Pagination
-                total={totalPages}
-                value={page}
-                onChange={setPage}
-                size="sm"
-              />
-            </Group>
+                {/* Loading indicator for infinite scroll */}
+                {isFetchingNextPage && (
+                  <Card p="md" withBorder>
+                    <Group justify="center" gap="md">
+                      <Loader size="sm" />
+                      <Text size="sm" c="dimmed">
+                        Loading more artists...
+                      </Text>
+                    </Group>
+                  </Card>
+                )}
+
+                {/* End of list indicator */}
+                {!hasNextPage && allArtists.length > 0 && (
+                  <Text ta="center" c="dimmed" py="md">
+                    You&apos;ve reached the end of your followed artists
+                  </Text>
+                )}
+              </Stack>
+            </ScrollArea>
           )}
         </Stack>
       </Box>
