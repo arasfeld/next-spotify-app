@@ -10,6 +10,8 @@ import type { RootState } from '@/lib/store';
 import type {
   Album,
   Artist,
+  Image,
+  Playlist,
   PlaylistsResponse,
   RecentlyPlayedItem,
   SpotifyApiResponse,
@@ -90,7 +92,12 @@ export const spotifyApi = createApi({
       query: () => `me/playlists`,
     }),
     search: builder.query<
-      any,
+      {
+        tracks?: SpotifyApiResponse<Track>;
+        artists?: SpotifyApiResponse<Artist>;
+        albums?: SpotifyApiResponse<Album>;
+        playlists?: SpotifyApiResponse<Playlist>;
+      },
       {
         query: string;
         type?: string;
@@ -116,7 +123,18 @@ export const spotifyApi = createApi({
         },
       }),
     }),
-    getCurrentlyPlaying: builder.query<any, void>({
+    getCurrentlyPlaying: builder.query<
+      {
+        item: Track;
+        is_playing: boolean;
+        progress_ms: number;
+        context: {
+          uri: string;
+          type: string;
+        };
+      } | null,
+      void
+    >({
       query: () => `me/player/currently-playing`,
     }),
     getRecentlyPlayed: builder.query<
@@ -125,11 +143,11 @@ export const spotifyApi = createApi({
     >({
       query: () => `me/player/recently-played`,
     }),
-    getPlaylist: builder.query<any, string>({
+    getPlaylist: builder.query<Playlist, string>({
       query: (playlistId) => `playlists/${playlistId}`,
     }),
     getPlaylistTracks: builder.query<
-      any,
+      SpotifyApiResponse<{ added_at: string; track: Track }>,
       { playlistId: string; limit?: number; offset?: number }
     >({
       query: ({ playlistId, limit = 100, offset = 0 }) => ({
@@ -164,11 +182,23 @@ export const spotifyApi = createApi({
         params: { limit, offset, type: 'artist' },
       }),
     }),
-    getBrowseCategories: builder.query<any, void>({
+    getBrowseCategories: builder.query<
+      {
+        categories: {
+          items: Array<{
+            id: string;
+            name: string;
+            icons: Image[];
+          }>;
+          total: number;
+        };
+      },
+      void
+    >({
       query: () => 'browse/categories?limit=50&country=US',
     }),
     getFeaturedPlaylists: builder.query<
-      any,
+      SpotifyApiResponse<Playlist>,
       { limit?: number; offset?: number }
     >({
       query: ({ limit = 20, offset = 0 }) => ({
@@ -176,7 +206,10 @@ export const spotifyApi = createApi({
         params: { limit, offset, country: 'US' },
       }),
     }),
-    getNewReleases: builder.query<any, { limit?: number; offset?: number }>({
+    getNewReleases: builder.query<
+      SpotifyApiResponse<Album>,
+      { limit?: number; offset?: number }
+    >({
       query: ({ limit = 20, offset = 0 }) => ({
         url: 'browse/new-releases',
         params: { limit, offset, country: 'US' },

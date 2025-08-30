@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation';
 import { createSession, deleteSession, updateSession } from './session';
-import { AUTH_COOKIE_NAME, REFRESH_COOKIE_NAME } from './cookies';
 
 // Server action to create session (replaces setAuthCookiesAction)
 export async function createSessionAction(

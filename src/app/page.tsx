@@ -277,6 +277,7 @@ export default function HomePage() {
                                   fit="cover"
                                   radius="sm"
                                   fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                                  alt={`Album cover for ${track.name}`}
                                 />
                                 <Stack gap={2}>
                                   <Text size="sm" fw={500} lineClamp={1}>

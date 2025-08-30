@@ -116,6 +116,7 @@ export default function SongsPage() {
                     height={60}
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                    alt={`Album cover for ${item.track.name}`}
                   />
                   <Box style={{ flex: 1 }}>
                     <Text fw={500} lineClamp={1}>

@@ -16,16 +16,14 @@ import {
   MicVocal,
   Music2,
   PlayCircle,
-  Radio,
   Search,
-  Settings,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/lib/hooks';
 
 import { useGetUserPlaylistsQuery } from '@/lib/features/spotify/spotify-api';
 
-import type { SpotifyPlaylist } from '@/lib/types';
+import type { Playlist } from '@/lib/types';
 
 export function Navbar() {
   const router = useRouter();
@@ -131,7 +129,7 @@ export function Navbar() {
             ) : (
               [...playlistsResponse.items]
                 .sort((a, b) => a.name.localeCompare(b.name))
-                .map((playlist: SpotifyPlaylist) => (
+                .map((playlist: Playlist) => (
                   <NavLink
                     description={`${playlist.tracks.total} track${
                       playlist.tracks.total === 1 ? '' : 's'

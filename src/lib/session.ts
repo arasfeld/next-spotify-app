@@ -2,7 +2,6 @@
 
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
 
 const secretKey =
   process.env.SESSION_SECRET || 'fallback-secret-key-for-development';
@@ -13,7 +12,7 @@ export interface SessionPayload {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
-  [key: string]: any; // Allow additional string keys for JWT compatibility
+  [key: string]: unknown; // Allow additional string keys for JWT compatibility
 }
 
 // Encrypt session data into a JWT
@@ -39,7 +38,10 @@ export async function decrypt(session: string | undefined = '') {
     return payload as unknown as SessionPayload;
   } catch (error) {
     // Only log actual errors, not expected invalid sessions
-    if (error instanceof Error && (error as any).code !== 'ERR_JWS_INVALID') {
+    if (
+      error instanceof Error &&
+      (error as { code?: string }).code !== 'ERR_JWS_INVALID'
+    ) {
       console.log('Failed to verify session:', error);
     }
     return null;

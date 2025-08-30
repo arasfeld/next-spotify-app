@@ -17,24 +17,3 @@ export interface SpotifyApiResponse<T> {
   next: string | null;
   previous: string | null;
 }
-
-export interface RecentlyPlayedItem {
-  track: {
-    id: string;
-    name: string;
-    artists: Array<{
-      id: string;
-      name: string;
-    }>;
-    album: {
-      id: string;
-      name: string;
-      images: Array<{
-        url: string;
-        height: number;
-        width: number;
-      }>;
-    };
-  };
-  played_at: string;
-}

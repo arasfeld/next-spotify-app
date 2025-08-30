@@ -28,70 +28,50 @@ import {
   useGetTopTracksQuery,
 } from '@/lib/features/spotify/spotify-api';
 
-import type { Artist, Track } from '@/lib/types';
+import type { Album, Artist, Track } from '@/lib/types';
 
 export default function DiscoverPage() {
   const auth = useAppSelector((state) => state.auth);
 
-  const {
-    data: topTracks,
-    isLoading: topTracksLoading,
-    error: topTracksError,
-  } = useGetTopTracksQuery(
+  const { data: topTracks, isLoading: topTracksLoading } = useGetTopTracksQuery(
     { timeRange: 'short_term' },
     {
       skip: !auth.authenticated || !auth.accessToken,
     }
   );
 
-  const {
-    data: topArtists,
-    isLoading: topArtistsLoading,
-    error: topArtistsError,
-  } = useGetTopArtistsQuery(
-    { timeRange: 'short_term' },
-    {
-      skip: !auth.authenticated || !auth.accessToken,
-    }
-  );
+  const { data: topArtists, isLoading: topArtistsLoading } =
+    useGetTopArtistsQuery(
+      { timeRange: 'short_term' },
+      {
+        skip: !auth.authenticated || !auth.accessToken,
+      }
+    );
 
-  const {
-    data: newReleases,
-    isLoading: newReleasesLoading,
-    error: newReleasesError,
-  } = useGetNewReleasesQuery(
-    { limit: 20 },
-    {
-      skip: !auth.authenticated || !auth.accessToken,
-    }
-  );
+  const { data: newReleases, isLoading: newReleasesLoading } =
+    useGetNewReleasesQuery(
+      { limit: 20 },
+      {
+        skip: !auth.authenticated || !auth.accessToken,
+      }
+    );
 
-  const {
-    data: recentlyPlayed,
-    isLoading: recentlyPlayedLoading,
-    error: recentlyPlayedError,
-  } = useGetRecentlyPlayedQuery(undefined, {
+  const { data: recentlyPlayed, isLoading: recentlyPlayedLoading } =
+    useGetRecentlyPlayedQuery(undefined, {
+      skip: !auth.authenticated || !auth.accessToken,
+    });
+
+  const { data: currentlyPlaying } = useGetCurrentlyPlayingQuery(undefined, {
     skip: !auth.authenticated || !auth.accessToken,
   });
 
-  const {
-    data: currentlyPlaying,
-    isLoading: currentlyPlayingLoading,
-    error: currentlyPlayingError,
-  } = useGetCurrentlyPlayingQuery(undefined, {
-    skip: !auth.authenticated || !auth.accessToken,
-  });
-
-  const {
-    data: savedAlbums,
-    isLoading: savedAlbumsLoading,
-    error: savedAlbumsError,
-  } = useGetSavedAlbumsQuery(
-    { limit: 8 },
-    {
-      skip: !auth.authenticated || !auth.accessToken,
-    }
-  );
+  const { data: savedAlbums, isLoading: savedAlbumsLoading } =
+    useGetSavedAlbumsQuery(
+      { limit: 8 },
+      {
+        skip: !auth.authenticated || !auth.accessToken,
+      }
+    );
 
   const renderSkeletonGrid = (count: number) => (
     <Grid gutter="md">
@@ -139,6 +119,7 @@ export default function DiscoverPage() {
                       fit="cover"
                       radius="sm"
                       fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                      alt={`Album cover for ${track.name}`}
                     />
                     <ActionIcon
                       variant="filled"
@@ -196,6 +177,7 @@ export default function DiscoverPage() {
                       fit="cover"
                       radius="sm"
                       fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎤"
+                      alt={`Artist photo for ${artist.name}`}
                     />
                     <ActionIcon
                       variant="filled"
@@ -217,6 +199,64 @@ export default function DiscoverPage() {
                     </Text>
                     <Text size="xs" c="dimmed">
                       Artist
+                    </Text>
+                  </Stack>
+                </Stack>
+              </Card>
+            </Grid.Col>
+          ))}
+        </Grid>
+      )}
+    </Box>
+  );
+
+  const renderAlbumGrid = (
+    albums: Album[],
+    title: string,
+    loading: boolean
+  ) => (
+    <Box>
+      <Title order={3} mb="md">
+        {title}
+      </Title>
+      {loading ? (
+        renderSkeletonGrid(8)
+      ) : (
+        <Grid gutter="md">
+          {albums?.slice(0, 8).map((album) => (
+            <Grid.Col key={album.id} span={{ base: 12, sm: 6, md: 4, lg: 3 }}>
+              <Card withBorder p="sm">
+                <Stack gap="xs">
+                  <Box pos="relative">
+                    <Image
+                      src={album.images?.[0]?.url}
+                      height={120}
+                      width="100%"
+                      fit="cover"
+                      radius="sm"
+                      fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=💿"
+                      alt={`Album cover for ${album.name}`}
+                    />
+                    <ActionIcon
+                      variant="filled"
+                      size="lg"
+                      radius="xl"
+                      style={{
+                        position: 'absolute',
+                        bottom: 8,
+                        right: 8,
+                        backgroundColor: 'var(--mantine-color-green-6)',
+                      }}
+                    >
+                      <Play size={16} fill="white" />
+                    </ActionIcon>
+                  </Box>
+                  <Stack gap={2}>
+                    <Text size="sm" fw={500} lineClamp={1}>
+                      {album.name}
+                    </Text>
+                    <Text size="xs" c="dimmed" lineClamp={1}>
+                      {album.artists?.map((artist) => artist.name).join(', ')}
                     </Text>
                   </Stack>
                 </Stack>
@@ -254,6 +294,7 @@ export default function DiscoverPage() {
                     fit="cover"
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                    alt={`Album cover for ${currentlyPlaying.item.name}`}
                   />
                   <Stack gap={4}>
                     <Text fw={500}>{currentlyPlaying.item.name}</Text>
@@ -287,22 +328,24 @@ export default function DiscoverPage() {
 
           {/* Recently Played */}
           {renderTrackGrid(
-            recentlyPlayed?.items?.map((item: { track: any }) => item.track) ||
-              [],
+            recentlyPlayed?.items?.map(
+              (item: { track: Track }) => item.track
+            ) || [],
             'Recently Played',
             recentlyPlayedLoading
           )}
 
           {/* New Releases */}
-          {renderTrackGrid(
-            newReleases?.albums?.items || [],
+          {renderAlbumGrid(
+            newReleases?.items || [],
             'New Releases',
             newReleasesLoading
           )}
 
           {/* Saved Albums */}
-          {renderTrackGrid(
-            savedAlbums?.items?.map((item: { album: any }) => item.album) || [],
+          {renderAlbumGrid(
+            savedAlbums?.items?.map((item: { album: Album }) => item.album) ||
+              [],
             'Your Saved Albums',
             savedAlbumsLoading
           )}

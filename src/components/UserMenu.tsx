@@ -95,7 +95,7 @@ export function UserMenu() {
         centered
       >
         <Text mb="lg">
-          Are you sure you want to log out? You'll need to sign in again to
+          Are you sure you want to log out? You&apos;ll need to sign in again to
           access your Spotify account.
         </Text>
 

@@ -31,7 +31,7 @@ export const refreshTokens = async (
       access_token: data.access_token,
       expires_in: data.expires_in,
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 };

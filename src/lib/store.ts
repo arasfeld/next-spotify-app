@@ -9,7 +9,6 @@ import {
   REGISTER,
   REHYDRATE,
   persistReducer,
-  persistStore,
 } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 
@@ -42,7 +41,7 @@ export const makeStore = () => {
         },
         // Disable immutability check for RTK Query compatibility
         immutableCheck: false,
-      }).concat(spotifyApi.middleware) as any, // Type assertion needed for Redux Persist + RTK Query compatibility
+      }).concat(spotifyApi.middleware),
     devTools: process.env.NODE_ENV !== 'production',
   });
 

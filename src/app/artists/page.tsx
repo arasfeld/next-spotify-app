@@ -111,6 +111,7 @@ export default function ArtistsPage() {
                       height={80}
                       radius="50%"
                       fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎤"
+                      alt={`Artist photo for ${artist.name}`}
                     />
                     <Box style={{ flex: 1 }}>
                       <Text size="lg" fw={500}>

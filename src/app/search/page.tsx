@@ -24,6 +24,7 @@ import { useAppSelector } from '@/lib/hooks';
 
 import { Layout } from '@/components/Layout';
 import { useSearchQuery } from '@/lib/features/spotify/spotify-api';
+import type { Album, Artist, Playlist, Track } from '@/lib/types';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -86,7 +87,7 @@ export default function SearchPage() {
     </Grid>
   );
 
-  const renderTrackGrid = (tracks: any[]) => (
+  const renderTrackGrid = (tracks: Track[]) => (
     <Grid gutter="md">
       {tracks
         .filter((track) => track !== null)
@@ -102,6 +103,7 @@ export default function SearchPage() {
                     fit="cover"
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                    alt={`Album cover for ${track.name}`}
                   />
                   <ActionIcon
                     variant="filled"
@@ -135,7 +137,7 @@ export default function SearchPage() {
     </Grid>
   );
 
-  const renderArtistGrid = (artists: any[]) => (
+  const renderArtistGrid = (artists: Artist[]) => (
     <Grid gutter="md">
       {artists
         .filter((artist) => artist !== null)
@@ -151,6 +153,7 @@ export default function SearchPage() {
                     fit="cover"
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎤"
+                    alt={`Artist photo for ${artist.name}`}
                   />
                   <ActionIcon
                     variant="filled"
@@ -181,7 +184,7 @@ export default function SearchPage() {
     </Grid>
   );
 
-  const renderAlbumGrid = (albums: any[]) => (
+  const renderAlbumGrid = (albums: Album[]) => (
     <Grid gutter="md">
       {albums
         .filter((album) => album !== null)
@@ -197,6 +200,7 @@ export default function SearchPage() {
                     fit="cover"
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=💿"
+                    alt={`Album cover for ${album.name}`}
                   />
                   <ActionIcon
                     variant="filled"
@@ -227,7 +231,7 @@ export default function SearchPage() {
     </Grid>
   );
 
-  const renderPlaylistGrid = (playlists: any[]) => (
+  const renderPlaylistGrid = (playlists: Playlist[]) => (
     <Grid gutter="md">
       {playlists
         .filter((playlist) => playlist !== null)
@@ -243,6 +247,7 @@ export default function SearchPage() {
                     fit="cover"
                     radius="sm"
                     fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=📜"
+                    alt={`Playlist cover for ${playlist.name}`}
                   />
                   <ActionIcon
                     variant="filled"
@@ -291,7 +296,7 @@ export default function SearchPage() {
       <Stack gap="xl">
         <Group justify="space-between" align="center">
           <Text size="sm" c="dimmed">
-            {totalResults} results for "{query}"
+            {totalResults} results for &quot;{query}&quot;
           </Text>
           <SegmentedControl
             value={searchType}
@@ -307,45 +312,53 @@ export default function SearchPage() {
           />
         </Group>
 
-        {searchType.includes('track') && tracks?.items?.length > 0 && (
-          <Box>
-            <Title order={3} mb="md">
-              Tracks
-            </Title>
-            {renderTrackGrid(tracks.items)}
-          </Box>
-        )}
+        {searchType.includes('track') &&
+          tracks?.items &&
+          tracks.items.length > 0 && (
+            <Box>
+              <Title order={3} mb="md">
+                Tracks
+              </Title>
+              {renderTrackGrid(tracks.items)}
+            </Box>
+          )}
 
-        {searchType.includes('artist') && artists?.items?.length > 0 && (
-          <Box>
-            <Title order={3} mb="md">
-              Artists
-            </Title>
-            {renderArtistGrid(artists.items)}
-          </Box>
-        )}
+        {searchType.includes('artist') &&
+          artists?.items &&
+          artists.items.length > 0 && (
+            <Box>
+              <Title order={3} mb="md">
+                Artists
+              </Title>
+              {renderArtistGrid(artists.items)}
+            </Box>
+          )}
 
-        {searchType.includes('album') && albums?.items?.length > 0 && (
-          <Box>
-            <Title order={3} mb="md">
-              Albums
-            </Title>
-            {renderAlbumGrid(albums.items)}
-          </Box>
-        )}
+        {searchType.includes('album') &&
+          albums?.items &&
+          albums.items.length > 0 && (
+            <Box>
+              <Title order={3} mb="md">
+                Albums
+              </Title>
+              {renderAlbumGrid(albums.items)}
+            </Box>
+          )}
 
-        {searchType.includes('playlist') && playlists?.items?.length > 0 && (
-          <Box>
-            <Title order={3} mb="md">
-              Playlists
-            </Title>
-            {renderPlaylistGrid(playlists.items)}
-          </Box>
-        )}
+        {searchType.includes('playlist') &&
+          playlists?.items &&
+          playlists.items.length > 0 && (
+            <Box>
+              <Title order={3} mb="md">
+                Playlists
+              </Title>
+              {renderPlaylistGrid(playlists.items)}
+            </Box>
+          )}
 
         {totalResults === 0 && (
           <Text ta="center" c="dimmed" py="xl">
-            No results found for "{query}"
+            No results found for &quot;{query}&quot;
           </Text>
         )}
 
@@ -394,7 +407,7 @@ export default function SearchPage() {
               🔍 Search Results
             </Title>
             <Text c="dimmed" size="sm">
-              Searching for "{query}"
+              Searching for &quot;{query}&quot;
             </Text>
           </Box>
 

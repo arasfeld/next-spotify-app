@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
 
   try {
     session = await decrypt(sessionCookie);
-  } catch (error) {
+  } catch {
     // Silently handle session decryption errors
     session = null;
   }

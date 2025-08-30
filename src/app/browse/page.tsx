@@ -5,7 +5,6 @@ import {
   Box,
   Card,
   Grid,
-  Group,
   Image,
   Skeleton,
   Stack,
@@ -85,32 +84,30 @@ export default function BrowsePage() {
               <Text c="red">Failed to load categories.</Text>
             ) : (
               <Grid gutter="md">
-                {categories?.categories?.items
-                  ?.slice(0, 8)
-                  .map((category: any) => (
-                    <Grid.Col
-                      key={category.id}
-                      span={{ base: 12, sm: 6, md: 4, lg: 3 }}
-                    >
-                      <Card withBorder p="sm">
-                        <Stack gap="xs">
-                          <Image
-                            alt={category.name}
-                            height={120}
-                            radius="sm"
-                            src={category.icons[0]?.url}
-                            width="100%"
-                            fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
-                          />
-                          <Stack gap={2}>
-                            <Text fw={500} lineClamp={1} size="sm">
-                              {category.name}
-                            </Text>
-                          </Stack>
+                {categories?.categories?.items?.slice(0, 8).map((category) => (
+                  <Grid.Col
+                    key={category.id}
+                    span={{ base: 12, sm: 6, md: 4, lg: 3 }}
+                  >
+                    <Card withBorder p="sm">
+                      <Stack gap="xs">
+                        <Image
+                          alt={category.name}
+                          height={120}
+                          radius="sm"
+                          src={category.icons[0]?.url}
+                          width="100%"
+                          fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                        />
+                        <Stack gap={2}>
+                          <Text fw={500} lineClamp={1} size="sm">
+                            {category.name}
+                          </Text>
                         </Stack>
-                      </Card>
-                    </Grid.Col>
-                  ))}
+                      </Stack>
+                    </Card>
+                  </Grid.Col>
+                ))}
               </Grid>
             )}
           </Box>
@@ -126,7 +123,7 @@ export default function BrowsePage() {
               <Text c="red">Failed to load new releases.</Text>
             ) : (
               <Grid gutter="md">
-                {newReleases?.albums?.items?.slice(0, 12).map((album: any) => (
+                {newReleases?.items?.slice(0, 12).map((album) => (
                   <Grid.Col
                     key={album.id}
                     span={{ base: 12, sm: 6, md: 4, lg: 3 }}
@@ -141,6 +138,7 @@ export default function BrowsePage() {
                             fit="cover"
                             radius="sm"
                             fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=🎵"
+                            alt={`Album cover for ${album.name}`}
                           />
                           <ActionIcon
                             variant="filled"
@@ -162,7 +160,7 @@ export default function BrowsePage() {
                           </Text>
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {album.artists
-                              ?.map((artist: any) => artist.name)
+                              ?.map((artist) => artist.name)
                               .join(', ')}
                           </Text>
                         </Stack>

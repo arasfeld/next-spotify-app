@@ -32,12 +32,13 @@ import {
   useGetPlaylistQuery,
   useGetPlaylistTracksQuery,
 } from '@/lib/features/spotify/spotify-api';
+import type { Track } from '@/lib/types';
 
 export default function PlaylistPage() {
   const { playlistId } = useParams<{ playlistId: string }>();
   const auth = useAppSelector((state) => state.auth);
   const [currentPage, setCurrentPage] = useState(0);
-  const [allTracks, setAllTracks] = useState<any[]>([]);
+  const [allTracks, setAllTracks] = useState<Track[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSwitchingPlaylist, setIsSwitchingPlaylist] = useState(false);
   const tracksPerPage = 100;
@@ -80,7 +81,7 @@ export default function PlaylistPage() {
   useEffect(() => {
     if (tracksData?.items) {
       const newTracks = tracksData.items
-        .map((item: any) => item.track)
+        .map((item: { track: Track }) => item.track)
         .filter(Boolean);
 
       if (currentPage === 0) {
@@ -90,9 +91,9 @@ export default function PlaylistPage() {
         // Subsequent pages, append tracks
         setAllTracks((prev) => {
           // Check for duplicates by track ID
-          const existingIds = new Set(prev.map((track: any) => track.id));
+          const existingIds = new Set(prev.map((track: Track) => track.id));
           const uniqueNewTracks = newTracks.filter(
-            (track: any) => !existingIds.has(track.id)
+            (track: Track) => !existingIds.has(track.id)
           );
 
           return [...prev, ...uniqueNewTracks];
@@ -123,7 +124,7 @@ export default function PlaylistPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handlePlayTrack = (trackUri: string) => {
+  const handlePlayTrack = () => {
     // TODO: Implement play track functionality
   };
 
@@ -140,14 +141,7 @@ export default function PlaylistPage() {
       setIsLoadingMore(true);
       setCurrentPage((prev) => prev + 1);
     }
-  }, [
-    isLoadingMore,
-    hasMoreTracks,
-    allTracks.length,
-    playlist?.tracks?.total,
-    tracksData?.items?.length,
-    tracksPerPage,
-  ]);
+  }, [isLoadingMore, hasMoreTracks, allTracks.length, playlist?.tracks?.total]);
 
   // Set up scroll listener when component mounts and ref is available
   useLayoutEffect(() => {
@@ -189,6 +183,7 @@ export default function PlaylistPage() {
     handleLoadMore,
     allTracks.length,
     playlist?.tracks?.total,
+    hasMoreTracks,
   ]);
 
   // Loading skeleton component
@@ -378,7 +373,7 @@ export default function PlaylistPage() {
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                  allTracks.map((track: any, index: number) => (
+                  allTracks.map((track: Track, index: number) => (
                     <Table.Tr key={`${track.id}-${index}`}>
                       <Table.Td>
                         <Text size="sm" c="dimmed">
@@ -459,7 +454,7 @@ export default function PlaylistPage() {
                           size="sm"
                           title="Play track"
                           variant="subtle"
-                          onClick={() => handlePlayTrack(track.uri || '')}
+                          onClick={handlePlayTrack}
                         >
                           <Play size={16} />
                         </ActionIcon>

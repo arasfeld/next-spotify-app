@@ -33,7 +33,7 @@ const ITEMS_PER_PAGE = 50;
 
 export default function AlbumsPage() {
   const [page, setPage] = useState(1);
-  const auth = useAppSelector((state) => state.auth as any);
+  const auth = useAppSelector((state) => state.auth);
 
   const {
     data: savedAlbumsResponse,
@@ -126,6 +126,7 @@ export default function AlbumsPage() {
                         fit="cover"
                         radius="sm"
                         fallbackSrc="https://placehold.co/300x300/1db954/ffffff?text=💿"
+                        alt={`Album cover for ${item.album.name}`}
                       />
                     </Box>
                     <Box style={{ flex: 1 }}>
