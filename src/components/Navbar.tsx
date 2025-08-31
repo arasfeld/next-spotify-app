@@ -13,6 +13,7 @@ import {
   LayoutGrid,
   Library,
   ListMusic,
+  MicVocal,
   Music2,
   PlayCircle,
   Search,
@@ -78,7 +79,7 @@ export function Navbar() {
         />
         <NavLink
           label="Artists"
-          leftSection={<Library />}
+          leftSection={<MicVocal />}
           onClick={() => router.push('/artists')}
         />
         <NavLink

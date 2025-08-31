@@ -27,7 +27,11 @@ export function Header({ onToggle, opened = false }: HeaderProps) {
       <Burger onClick={onToggle} opened={opened} size="sm" hiddenFrom="sm" />
 
       {/* Center: Logo - hidden on small screens */}
-      <Box visibleFrom="sm">
+      <Box
+        visibleFrom="sm"
+        style={{ cursor: 'pointer' }}
+        onClick={() => router.push('/')}
+      >
         <LogoIcon size={42} />
       </Box>
 
