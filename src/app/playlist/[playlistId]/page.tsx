@@ -147,12 +147,7 @@ export default function PlaylistPage() {
                 label={track.name || 'Unknown Track'}
                 disabled={!track.name}
               >
-                <Text
-                  size="sm"
-                  fw={500}
-                  lineClamp={1}
-                  style={{ maxWidth: 200 }}
-                >
+                <Text size="sm" fw={500} lineClamp={1}>
                   {track.name || 'Unknown Track'}
                 </Text>
               </Tooltip>
@@ -167,12 +162,7 @@ export default function PlaylistPage() {
               }
               disabled={!track.artists?.length}
             >
-              <Text
-                size="sm"
-                c="dimmed"
-                lineClamp={1}
-                style={{ maxWidth: 150 }}
-              >
+              <Text size="sm" c="dimmed" lineClamp={1}>
                 {track.artists
                   ?.map((artist: { name: string }) => artist.name)
                   .join(', ') || 'Unknown Artist'}
@@ -184,12 +174,7 @@ export default function PlaylistPage() {
               label={track.album?.name || 'Unknown Album'}
               disabled={!track.album?.name}
             >
-              <Text
-                size="sm"
-                c="dimmed"
-                lineClamp={1}
-                style={{ maxWidth: 150 }}
-              >
+              <Text size="sm" c="dimmed" lineClamp={1}>
                 {track.album?.name || 'Unknown Album'}
               </Text>
             </Tooltip>
